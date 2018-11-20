@@ -1,0 +1,34 @@
+#Configuration.
+[mqtt]
+server="tcp://localhost:1883"
+user="your-user"
+password="your-password"
+
+[gateway]
+mac="your-gw-mac"
+
+[device]
+eui="0000000000000000"
+address="9539da01"
+network_session_key="ac5ef815da5694767186c4a7cad414a2"
+application_session_key="12d998021d6b039ec7f8f08259cee046"
+marshaler="json"
+app_key="00000002000000040000000200000004"
+
+[data_rate]
+bandwith=125
+spread_factor=10
+bit_rate=0
+
+[rx_info]
+channel=0
+code_rate="4/5"
+crc_status=1
+frequency=902300000
+lora_snr=7.0
+rf_chain=1
+rssi=-57
+
+[default_data]
+names = ["Temp", "Lat", "Lng"]
+data = [[25.0, 127.0, 2.0], [-33.4348474, 90.0, 4.0], [-70.6157308, 180.0, 4.0]]
