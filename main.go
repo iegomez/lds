@@ -55,6 +55,7 @@ type device struct {
 	AppKey        string             `toml:"app_key"`     //Application key, for Lorawan 1.1
 	Major         lorawan.Major      `toml:"major"`       //Lorawan major version
 	MACVersion    lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
+	Type          lorawan.MType      `toml:"mtype"`       //LoRaWAN mtype (ConfirmedDataUp or UnconfirmedDataUp)
 	uiEUI         *ui.Entry
 	uiAddress     *ui.Entry
 	uiNwkSEncKey  *ui.Entry
@@ -66,6 +67,7 @@ type device struct {
 	uiAppKey      *ui.Entry
 	uiMajor       *ui.Combobox
 	uiMACVersion  *ui.Combobox
+	uiMType       *ui.Combobox
 }
 
 type dataRate struct {
@@ -177,6 +179,7 @@ func checkConfig() {
 		uiAppKey:      ui.NewEntry(),
 		uiMajor:       ui.NewCombobox(),
 		uiMACVersion:  ui.NewCombobox(),
+		uiMType:       ui.NewCombobox(),
 	}
 
 	cGw := gateway{
@@ -258,12 +261,12 @@ func checkConfig() {
 	config.Device.uiNwkKey.SetText(config.Device.NwkKey)
 	config.Device.uiAppKey.SetText(config.Device.AppKey)
 
-	config.Device.uiMajor.Append(fmt.Sprintf("%d", lorawan.LoRaWANR1))
+	config.Device.uiMajor.Append("LoRaWANRev1")
 	config.Device.uiMajor.SetSelected(0)
 	config.Device.Major = lorawan.LoRaWANR1
 
-	config.Device.uiMACVersion.Append(fmt.Sprintf("%d", lorawan.LoRaWAN1_0))
-	config.Device.uiMACVersion.Append(fmt.Sprintf("%d", lorawan.LoRaWAN1_1))
+	config.Device.uiMACVersion.Append("LoRaWAN 1.0")
+	config.Device.uiMACVersion.Append("LoRaWAN 1.1")
 
 	config.Device.uiMACVersion.OnSelected(func(*ui.Combobox) {
 		if config.Device.uiMACVersion.Selected() == 0 {
@@ -282,6 +285,10 @@ func checkConfig() {
 	} else if config.Device.MACVersion == 1 {
 		config.Device.uiMACVersion.SetSelected(1)
 	}
+
+	config.Device.uiMType.Append("UnconfirmedDataUp")
+	config.Device.uiMType.Append("ConfirmedDataUp")
+	config.Device.uiMType.SetSelected(0)
 
 	config.DR.uiBandwith.SetText(fmt.Sprintf("%d", config.DR.Bandwith))
 	config.DR.uiBitRate.SetText(fmt.Sprintf("%d", config.DR.BitRate))
@@ -376,6 +383,7 @@ func makeDeviceForm() ui.Control {
 	entryForm.Append("Marshaler", config.Device.uiMarshaler, false)
 	entryForm.Append("LoRaWAN major: ", config.Device.uiMajor, false)
 	entryForm.Append("MAC Version: ", config.Device.uiMACVersion, false)
+	entryForm.Append("MType: ", config.Device.uiMType, false)
 
 	return vbox
 }
@@ -861,9 +869,13 @@ func run() {
 		}
 
 		//////
+		mType := lorawan.UnconfirmedDataUp
+		if config.Device.uiMType.Selected() > 0 {
+			mType = lorawan.ConfirmedDataUp
+		}
 
 		//Now send an uplink
-		err = device.Uplink(client, lorawan.UnconfirmedDataUp, 1, &urx, &utx, payload, config.GW.uiMAC.Text(), bands[config.Band.uiName.Selected()], *dataRate)
+		err = device.Uplink(client, mType, 1, &urx, &utx, payload, config.GW.uiMAC.Text(), bands[config.Band.uiName.Selected()], *dataRate)
 		if err != nil {
 			log.Printf("couldn't send uplink: %s\n", err)
 		}

@@ -5,7 +5,9 @@ It supports all bands and configurations LoRaWAN versions 1.0 and 1.1.
 
 It has a simple but complete GUI (built with https://github.com/andlabs/ui) that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.  
 
-The GUI allows to modify all options, but they may also be seeded with a conf file for ease of use. An example file is provided:
+### Conf
+
+The GUI allows to modify all options, but they may also be seeded with a conf file for ease of use. An example file is provided to get an idea, but the program will only load a conf file with the name `conf.toml` located at the same dir as the binary:
 
 ```toml
 #Configuration.
