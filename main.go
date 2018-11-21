@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"strconv"
 
 	"github.com/golang/protobuf/ptypes"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
+	lwband "github.com/brocaar/lorawan/band"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/sirupsen/logrus"
@@ -36,19 +38,34 @@ type gateway struct {
 	uiMAC *ui.Entry
 }
 
+type band struct {
+	Name   lwband.Name `toml:"name"`
+	uiName *ui.Combobox
+}
+
 type device struct {
-	EUI         string `toml:"eui"`
-	Address     string `toml:"address"`
-	NWSKey      string `toml:"network_session_key"`
-	ASKey       string `toml:"application_session_key"`
-	Marshaler   string `toml:"marshaler"`
-	AppKey      string `toml:"app_key"`
-	uiEUI       *ui.Entry
-	uiAddress   *ui.Entry
-	uiNWSKey    *ui.Entry
-	uiASKey     *ui.Entry
-	uiMarshaler *ui.Combobox
-	uiAppKey    *ui.Entry
+	EUI           string             `toml:"eui"`
+	Address       string             `toml:"address"`
+	NwkSEncKey    string             `toml:"network_session_encription_key"`
+	SNwkSIntKey   string             `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
+	FNwkSIntKey   string             `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
+	AppSKey       string             `toml:"application_session_key"`
+	Marshaler     string             `toml:"marshaler"`
+	NwkKey        string             `toml:"nwk_key"`     //Network key, used to be called application key for Lorawan 1.0
+	AppKey        string             `toml:"app_key"`     //Application key, for Lorawan 1.1
+	Major         lorawan.Major      `toml:"major"`       //Lorawan major version
+	MACVersion    lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
+	uiEUI         *ui.Entry
+	uiAddress     *ui.Entry
+	uiNwkSEncKey  *ui.Entry
+	uiSNwkSIntKey *ui.Entry
+	uiFNwkSIntKey *ui.Entry
+	uiAppSKey     *ui.Entry
+	uiMarshaler   *ui.Combobox
+	uiNwkKey      *ui.Entry
+	uiAppKey      *ui.Entry
+	uiMajor       *ui.Combobox
+	uiMACVersion  *ui.Combobox
 }
 
 type dataRate struct {
@@ -79,14 +96,16 @@ type rxInfo struct {
 
 type tomlConfig struct {
 	MQTT        mqtt        `toml:"mqtt"`
+	Band        band        `toml:"band"`
 	Device      device      `timl:"device"`
 	GW          gateway     `toml:"gateway"`
 	DR          dataRate    `toml:"data_rate"`
 	RXInfo      rxInfo      `toml:"rx_info"`
 	DefaultData defaultData `toml:"default_data"`
+	RawPayload  rawPayload  `toml:"raw_payload"`
 }
 
-//defaultData holds optional default data.
+//defaultData holds optional default encoded data.
 type defaultData struct {
 	Names []string    `toml:"names"`
 	Data  [][]float64 `toml:"data"`
@@ -102,17 +121,43 @@ type SendableValue struct {
 	name     string
 }
 
+//rawPayload holds optional raw bytes payload (hex encoded).
+type rawPayload struct {
+	Payload   string `toml:"payload"`
+	UseRaw    bool   `toml:"use_raw"`
+	uiPayload *ui.Entry
+	uiUseRaw  *ui.Checkbox
+}
+
 var confFile string
 var config tomlConfig
 var dataBox *ui.Box
 var dataForm *ui.Form
 var data []SendableValue
 var stop bool
-var marshalers map[int]string
+var marshalers = map[int]string{0: "json", 1: "protobuf", 2: "v2_json"}
+var bands = []lwband.Name{
+	lwband.AS_923,
+	lwband.AU_915_928,
+	lwband.CN_470_510,
+	lwband.CN_779_787,
+	lwband.EU_433,
+	lwband.EU_863_870,
+	lwband.IN_865_867,
+	lwband.KR_920_923,
+	lwband.US_902_928,
+	lwband.RU_864_870,
+}
+var sendOnce bool
+var interval int
+var uiSendOnce *ui.RadioButtons
+var uiInterval *ui.Slider
+var runBtn *ui.Button
+var stopBtn *ui.Button
 
 func checkConfig() {
 
-	marshalers = map[int]string{0: "json", 1: "protobuf", 2: "v2_json"}
+	fmt.Println("running config")
 
 	cMqtt := mqtt{
 		uiServer:   ui.NewEntry(),
@@ -121,16 +166,25 @@ func checkConfig() {
 	}
 
 	cDev := device{
-		uiEUI:       ui.NewEntry(),
-		uiAddress:   ui.NewEntry(),
-		uiNWSKey:    ui.NewEntry(),
-		uiASKey:     ui.NewEntry(),
-		uiMarshaler: ui.NewCombobox(),
-		uiAppKey:    ui.NewEntry(),
+		uiEUI:         ui.NewEntry(),
+		uiAddress:     ui.NewEntry(),
+		uiNwkSEncKey:  ui.NewEntry(),
+		uiSNwkSIntKey: ui.NewEntry(),
+		uiFNwkSIntKey: ui.NewEntry(),
+		uiAppSKey:     ui.NewEntry(),
+		uiMarshaler:   ui.NewCombobox(),
+		uiNwkKey:      ui.NewEntry(),
+		uiAppKey:      ui.NewEntry(),
+		uiMajor:       ui.NewCombobox(),
+		uiMACVersion:  ui.NewCombobox(),
 	}
 
 	cGw := gateway{
 		uiMAC: ui.NewEntry(),
+	}
+
+	cBand := band{
+		uiName: ui.NewCombobox(),
 	}
 
 	cDr := dataRate{
@@ -151,13 +205,20 @@ func checkConfig() {
 
 	dd := defaultData{}
 
+	cPl := rawPayload{
+		uiPayload: ui.NewEntry(),
+		uiUseRaw:  ui.NewCheckbox("Select to send raw bytes (hex encoded) instead of encoded data."),
+	}
+
 	config = tomlConfig{
 		MQTT:        cMqtt,
+		Band:        cBand,
 		Device:      cDev,
 		GW:          cGw,
 		DR:          cDr,
 		RXInfo:      cRx,
 		DefaultData: dd,
+		RawPayload:  cPl,
 	}
 
 	if _, err := toml.DecodeFile(confFile, &config); err != nil {
@@ -171,10 +232,19 @@ func checkConfig() {
 
 	config.GW.uiMAC.SetText(config.GW.MAC)
 
+	for i := 0; i < len(bands); i++ {
+		config.Band.uiName.Append(string(bands[i]))
+		if config.Band.Name == bands[i] {
+			config.Band.uiName.SetSelected(i)
+		}
+	}
+
 	config.Device.uiEUI.SetText(config.Device.EUI)
 	config.Device.uiAddress.SetText(config.Device.Address)
-	config.Device.uiNWSKey.SetText(config.Device.NWSKey)
-	config.Device.uiASKey.SetText(config.Device.ASKey)
+	config.Device.uiNwkSEncKey.SetText(config.Device.NwkSEncKey)
+	config.Device.uiSNwkSIntKey.SetText(config.Device.SNwkSIntKey)
+	config.Device.uiFNwkSIntKey.SetText(config.Device.FNwkSIntKey)
+	config.Device.uiAppSKey.SetText(config.Device.AppSKey)
 	config.Device.uiMarshaler.Append(marshalers[0])
 	config.Device.uiMarshaler.Append(marshalers[1])
 	config.Device.uiMarshaler.Append(marshalers[2])
@@ -185,7 +255,33 @@ func checkConfig() {
 	} else {
 		config.Device.uiMarshaler.SetSelected(2)
 	}
+	config.Device.uiNwkKey.SetText(config.Device.NwkKey)
 	config.Device.uiAppKey.SetText(config.Device.AppKey)
+
+	config.Device.uiMajor.Append(fmt.Sprintf("%d", lorawan.LoRaWANR1))
+	config.Device.uiMajor.SetSelected(0)
+	config.Device.Major = lorawan.LoRaWANR1
+
+	config.Device.uiMACVersion.Append(fmt.Sprintf("%d", lorawan.LoRaWAN1_0))
+	config.Device.uiMACVersion.Append(fmt.Sprintf("%d", lorawan.LoRaWAN1_1))
+
+	config.Device.uiMACVersion.OnSelected(func(*ui.Combobox) {
+		if config.Device.uiMACVersion.Selected() == 0 {
+			config.Device.uiSNwkSIntKey.Hide()
+			config.Device.uiFNwkSIntKey.Hide()
+			config.Device.uiAppKey.Hide()
+		} else {
+			config.Device.uiSNwkSIntKey.Show()
+			config.Device.uiFNwkSIntKey.Show()
+			config.Device.uiAppKey.Show()
+		}
+	})
+
+	if config.Device.MACVersion == 0 {
+		config.Device.uiMACVersion.SetSelected(0)
+	} else if config.Device.MACVersion == 1 {
+		config.Device.uiMACVersion.SetSelected(1)
+	}
 
 	config.DR.uiBandwith.SetText(fmt.Sprintf("%d", config.DR.Bandwith))
 	config.DR.uiBitRate.SetText(fmt.Sprintf("%d", config.DR.BitRate))
@@ -198,6 +294,11 @@ func checkConfig() {
 	config.RXInfo.uiLoRaSNR.SetText(fmt.Sprintf("%f", config.RXInfo.LoRaSNR))
 	config.RXInfo.uiRfChain.SetText(fmt.Sprintf("%d", config.RXInfo.RfChain))
 	config.RXInfo.uiRssi.SetText(fmt.Sprintf("%d", config.RXInfo.Rssi))
+
+	config.RawPayload.uiPayload.SetText(config.RawPayload.Payload)
+	config.RawPayload.uiUseRaw.SetChecked(config.RawPayload.UseRaw)
+
+	fmt.Println("config complete")
 
 }
 
@@ -217,8 +318,10 @@ func makeMQTTForm() ui.Control {
 	entry.SetReadOnly(true)
 	button.OnClicked(func(*ui.Button) {
 		filename := ui.OpenFile(mainwin)
+		fmt.Printf("opening: %s\n", filename)
 		if filename != "" {
 			confFile = filename
+			fmt.Println("gonna run config")
 			checkConfig()
 		}
 	})
@@ -264,10 +367,15 @@ func makeDeviceForm() ui.Control {
 
 	entryForm.Append("DevEUI:", config.Device.uiEUI, false)
 	entryForm.Append("Device address:", config.Device.uiAddress, false)
-	entryForm.Append("Network session key:", config.Device.uiNWSKey, false)
-	entryForm.Append("Application session key:", config.Device.uiASKey, false)
-	entryForm.Append("Marshaler", config.Device.uiMarshaler, false)
+	entryForm.Append("Network session encryption key:", config.Device.uiNwkSEncKey, false)
+	entryForm.Append("Serving network session integration key:", config.Device.uiSNwkSIntKey, false)
+	entryForm.Append("Forwarding network session integration key:", config.Device.uiFNwkSIntKey, false)
+	entryForm.Append("Application session key:", config.Device.uiAppSKey, false)
+	entryForm.Append("NwkKey: ", config.Device.uiNwkKey, false)
 	entryForm.Append("AppKey: ", config.Device.uiAppKey, false)
+	entryForm.Append("Marshaler", config.Device.uiMarshaler, false)
+	entryForm.Append("LoRaWAN major: ", config.Device.uiMajor, false)
+	entryForm.Append("MAC Version: ", config.Device.uiMACVersion, false)
 
 	return vbox
 }
@@ -292,6 +400,7 @@ func makeLoRaForm() ui.Control {
 	group.SetChild(ui.NewNonWrappingMultilineEntry())
 	group.SetChild(entryForm)
 
+	entryForm.Append("Band: ", config.Band.uiName, false)
 	entryForm.Append("Bandwidth: ", config.DR.uiBandwith, false)
 	entryForm.Append("Bit rate: ", config.DR.uiBitRate, false)
 	entryForm.Append("Spread factor: ", config.DR.uiSpreadFactor, false)
@@ -372,11 +481,11 @@ func makeDataForm() ui.Control {
 		}
 	}
 
-	runBtn := ui.NewButton("Run")
+	runBtn = ui.NewButton("Run")
 	entry2 := ui.NewEntry()
 	entry2.SetReadOnly(true)
 
-	stopBtn := ui.NewButton("Stop")
+	stopBtn = ui.NewButton("Stop")
 	entry3 := ui.NewEntry()
 	entry3.SetReadOnly(true)
 
@@ -399,8 +508,33 @@ func makeDataForm() ui.Control {
 
 	dataBox.Append(ui.NewHorizontalSeparator(), false)
 
-	group := ui.NewGroup("Data")
+	confBox := ui.NewHorizontalBox()
+	confBox.SetPadded(true)
+	dataBox.Append(confBox, false)
+
+	uiSendOnce = ui.NewRadioButtons()
+	uiSendOnce.Append("Send once")
+	uiSendOnce.Append("Send every X seconds")
+	uiSendOnce.SetSelected(0)
+	uiInterval = ui.NewSlider(1, 60)
+
+	confBox.Append(uiSendOnce, false)
+	confBox.Append(uiInterval, true)
+
+	dataBox.Append(ui.NewHorizontalSeparator(), false)
+
+	rawBox := ui.NewHorizontalBox()
+	rawBox.SetPadded(true)
+	dataBox.Append(rawBox, false)
+
+	rawBox.Append(config.RawPayload.uiPayload, false)
+	rawBox.Append(config.RawPayload.uiUseRaw, false)
+
+	dataBox.Append(ui.NewHorizontalSeparator(), false)
+
+	group := ui.NewGroup("Encoded data")
 	group.SetMargined(true)
+
 	dataBox.Append(group, true)
 
 	group.SetChild(ui.NewNonWrappingMultilineEntry())
@@ -488,20 +622,32 @@ func run() {
 	log.Println("Connection established.")
 
 	//Build your node with known keys (ABP).
-	nwsHexKey := config.Device.uiNWSKey.Text()
-	appHexKey := config.Device.uiASKey.Text()
+	nwkSEncHexKey := config.Device.uiNwkSEncKey.Text()
+	sNwkSIntHexKey := config.Device.uiSNwkSIntKey.Text()
+	fNwkSIntHexKey := config.Device.uiFNwkSIntKey.Text()
+	appSHexKey := config.Device.uiAppSKey.Text()
 	devHexAddr := config.Device.uiAddress.Text()
 	devAddr, err := lds.HexToDevAddress(devHexAddr)
 	if err != nil {
 		log.Printf("dev addr error: %s", err)
 	}
 
-	nwkSKey, err := lds.HexToKey(nwsHexKey)
+	nwkSEncKey, err := lds.HexToKey(nwkSEncHexKey)
 	if err != nil {
-		log.Printf("nwkskey error: %s", err)
+		log.Printf("nwkSEncKey error: %s", err)
 	}
 
-	appSKey, err := lds.HexToKey(appHexKey)
+	sNwkSIntKey, err := lds.HexToKey(sNwkSIntHexKey)
+	if err != nil {
+		log.Printf("sNwkSIntKey error: %s", err)
+	}
+
+	fNwkSIntKey, err := lds.HexToKey(fNwkSIntHexKey)
+	if err != nil {
+		log.Printf("fNwkSIntKey error: %s", err)
+	}
+
+	appSKey, err := lds.HexToKey(appSHexKey)
 	if err != nil {
 		log.Printf("appskey error: %s", err)
 	}
@@ -511,18 +657,33 @@ func run() {
 		return
 	}
 
-	appKey := [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	nwkHexKey := config.Device.uiNwkKey.Text()
+	appHexKey := config.Device.uiAppKey.Text()
+
+	appKey, err := lds.HexToKey(appHexKey)
+	if err != nil {
+		return
+	}
+	nwkKey, err := lds.HexToKey(nwkHexKey)
+	if err != nil {
+		return
+	}
 	appEUI := [8]byte{0, 0, 0, 0, 0, 0, 0, 0}
 
 	device := &lds.Device{
-		DevEUI:  devEUI,
-		DevAddr: devAddr,
-		NwkSKey: nwkSKey,
-		AppSKey: appSKey,
-		AppKey:  appKey,
-		AppEUI:  appEUI,
-		UlFcnt:  0,
-		DlFcnt:  0,
+		DevEUI:      devEUI,
+		DevAddr:     devAddr,
+		NwkSEncKey:  nwkSEncKey,
+		SNwkSIntKey: sNwkSIntKey,
+		FNwkSIntKey: fNwkSIntKey,
+		AppSKey:     appSKey,
+		AppKey:      appKey,
+		NwkKey:      nwkKey,
+		AppEUI:      appEUI,
+		UlFcnt:      0,
+		DlFcnt:      0,
+		Major:       lorawan.Major(config.Device.uiMajor.Selected()),
+		MACVersion:  lorawan.MACVersion(config.Device.uiMACVersion.Selected()),
 	}
 
 	device.SetMarshaler(marshalers[config.Device.uiMarshaler.Selected()])
@@ -557,39 +718,48 @@ func run() {
 		}
 		payload := []byte{}
 
-		for _, v := range data {
-			if v.isFloat.Checked() {
-				val, err := strconv.ParseFloat(v.value.Text(), 32)
-				if err != nil {
-					log.Errorf("wrong conversion: %s\n", err)
-					return
-				}
-				maxVal, err := strconv.ParseFloat(v.maxVal.Text(), 32)
-				if err != nil {
-					log.Errorf("wrong conversion: %s\n", err)
-					return
-				}
-				numBytes, err := strconv.Atoi(v.numBytes.Text())
-				if err != nil {
-					log.Errorf("wrong conversion: %s\n", err)
-					return
-				}
-				arr := lds.GenerateFloat(float32(val), float32(maxVal), int32(numBytes))
-				payload = append(payload, arr...)
-			} else {
-				val, err := strconv.Atoi(v.value.Text())
-				if err != nil {
-					log.Errorf("wrong conversion: %s\n", err)
-					return
-				}
+		if config.RawPayload.uiUseRaw.Checked() {
+			var pErr error
+			payload, pErr = hex.DecodeString(config.RawPayload.uiPayload.Text())
+			if err != nil {
+				log.Errorf("couldn't decode hex payload: %s\n", pErr)
+				return
+			}
+		} else {
+			for _, v := range data {
+				if v.isFloat.Checked() {
+					val, err := strconv.ParseFloat(v.value.Text(), 32)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					maxVal, err := strconv.ParseFloat(v.maxVal.Text(), 32)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					numBytes, err := strconv.Atoi(v.numBytes.Text())
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					arr := lds.GenerateFloat(float32(val), float32(maxVal), int32(numBytes))
+					payload = append(payload, arr...)
+				} else {
+					val, err := strconv.Atoi(v.value.Text())
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
 
-				numBytes, err := strconv.Atoi(v.numBytes.Text())
-				if err != nil {
-					log.Errorf("wrong conversion: %s\n", err)
-					return
+					numBytes, err := strconv.Atoi(v.numBytes.Text())
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					arr := lds.GenerateInt(int32(val), int32(numBytes))
+					payload = append(payload, arr...)
 				}
-				arr := lds.GenerateInt(int32(val), int32(numBytes))
-				payload = append(payload, arr...)
 			}
 		}
 
@@ -693,161 +863,22 @@ func run() {
 		//////
 
 		//Now send an uplink
-		err = device.Uplink(client, lorawan.UnconfirmedDataUp, 1, &urx, &utx, payload, config.GW.uiMAC.Text())
+		err = device.Uplink(client, lorawan.UnconfirmedDataUp, 1, &urx, &utx, payload, config.GW.uiMAC.Text(), bands[config.Band.uiName.Selected()], *dataRate)
 		if err != nil {
 			log.Printf("couldn't send uplink: %s\n", err)
 		}
 
-		time.Sleep(3 * time.Second)
+		if uiSendOnce.Selected() == 0 {
+			stop = false
+			//Let mqtt client publish first, then stop it.
+			time.Sleep(2 * time.Second)
+			stopBtn.Disable()
+			runBtn.Enable()
+			return
+		}
+
+		time.Sleep(time.Duration(uiInterval.Value()) * time.Second)
 
 	}
 
 }
-
-/*
-func makeNumbersPage() ui.Control {
-	hbox := ui.NewHorizontalBox()
-	hbox.SetPadded(true)
-
-	group := ui.NewGroup("Numbers")
-	group.SetMargined(true)
-	hbox.Append(group, true)
-
-	vbox := ui.NewVerticalBox()
-	vbox.SetPadded(true)
-	group.SetChild(vbox)
-
-	spinbox := ui.NewSpinbox(0, 100)
-	slider := ui.NewSlider(0, 100)
-	pbar := ui.NewProgressBar()
-	spinbox.OnChanged(func(*ui.Spinbox) {
-		slider.SetValue(spinbox.Value())
-		pbar.SetValue(spinbox.Value())
-	})
-	slider.OnChanged(func(*ui.Slider) {
-		spinbox.SetValue(slider.Value())
-		pbar.SetValue(slider.Value())
-	})
-	vbox.Append(spinbox, false)
-	vbox.Append(slider, false)
-	vbox.Append(pbar, false)
-
-	ip := ui.NewProgressBar()
-	ip.SetValue(-1)
-	vbox.Append(ip, false)
-
-	group = ui.NewGroup("Lists")
-	group.SetMargined(true)
-	hbox.Append(group, true)
-
-	vbox = ui.NewVerticalBox()
-	vbox.SetPadded(true)
-	group.SetChild(vbox)
-
-	cbox := ui.NewCombobox()
-	cbox.Append("Combobox Item 1")
-	cbox.Append("Combobox Item 2")
-	cbox.Append("Combobox Item 3")
-	vbox.Append(cbox, false)
-
-	ecbox := ui.NewEditableCombobox()
-	ecbox.Append("Editable Item 1")
-	ecbox.Append("Editable Item 2")
-	ecbox.Append("Editable Item 3")
-	vbox.Append(ecbox, false)
-
-	rb := ui.NewRadioButtons()
-	rb.Append("Radio Button 1")
-	rb.Append("Radio Button 2")
-	rb.Append("Radio Button 3")
-	vbox.Append(rb, false)
-
-	return hbox
-}
-
-func makeDataChoosersPage() ui.Control {
-	hbox := ui.NewHorizontalBox()
-	hbox.SetPadded(true)
-
-	vbox := ui.NewVerticalBox()
-	vbox.SetPadded(true)
-	hbox.Append(vbox, false)
-
-	vbox.Append(ui.NewDatePicker(), false)
-	vbox.Append(ui.NewTimePicker(), false)
-	vbox.Append(ui.NewDateTimePicker(), false)
-	vbox.Append(ui.NewFontButton(), false)
-	vbox.Append(ui.NewColorButton(), false)
-
-	hbox.Append(ui.NewVerticalSeparator(), false)
-
-	vbox = ui.NewVerticalBox()
-	vbox.SetPadded(true)
-	hbox.Append(vbox, true)
-
-	grid := ui.NewGrid()
-	grid.SetPadded(true)
-	vbox.Append(grid, false)
-
-	button := ui.NewButton("Open File")
-	entry := ui.NewEntry()
-	entry.SetReadOnly(true)
-	button.OnClicked(func(*ui.Button) {
-		filename := ui.OpenFile(mainwin)
-		if filename == "" {
-			filename = "(cancelled)"
-		}
-		entry.SetText(filename)
-	})
-	grid.Append(button,
-		0, 0, 1, 1,
-		false, ui.AlignFill, false, ui.AlignFill)
-	grid.Append(entry,
-		1, 0, 1, 1,
-		true, ui.AlignFill, false, ui.AlignFill)
-
-	button = ui.NewButton("Save File")
-	entry2 := ui.NewEntry()
-	entry2.SetReadOnly(true)
-	button.OnClicked(func(*ui.Button) {
-		filename := ui.SaveFile(mainwin)
-		if filename == "" {
-			filename = "(cancelled)"
-		}
-		entry2.SetText(filename)
-	})
-	grid.Append(button,
-		0, 1, 1, 1,
-		false, ui.AlignFill, false, ui.AlignFill)
-	grid.Append(entry2,
-		1, 1, 1, 1,
-		true, ui.AlignFill, false, ui.AlignFill)
-
-	msggrid := ui.NewGrid()
-	msggrid.SetPadded(true)
-	grid.Append(msggrid,
-		0, 2, 2, 1,
-		false, ui.AlignCenter, false, ui.AlignStart)
-
-	button = ui.NewButton("Message Box")
-	button.OnClicked(func(*ui.Button) {
-		ui.MsgBox(mainwin,
-			"This is a normal message box.",
-			"More detailed information can be shown here.")
-	})
-	msggrid.Append(button,
-		0, 0, 1, 1,
-		false, ui.AlignFill, false, ui.AlignFill)
-	button = ui.NewButton("Error Box")
-	button.OnClicked(func(*ui.Button) {
-		ui.MsgBoxError(mainwin,
-			"This message box describes an error.",
-			"More detailed information can be shown here.")
-	})
-	msggrid.Append(button,
-		1, 0, 1, 1,
-		false, ui.AlignFill, false, ui.AlignFill)
-
-	return hbox
-}
-*/

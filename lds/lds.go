@@ -5,9 +5,13 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"math"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/brocaar/lorawan/band"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -49,16 +53,21 @@ type DataRate struct {
 
 //Device holds device keys, addr, eui and fcnt.
 type Device struct {
-	DevEUI    lorawan.EUI64
-	DevAddr   lorawan.DevAddr
-	NwkSKey   lorawan.AES128Key
-	AppSKey   lorawan.AES128Key
-	AppKey    [16]byte
-	AppEUI    lorawan.EUI64
-	UlFcnt    uint32
-	DlFcnt    uint32
-	marshal   func(msg proto.Message) ([]byte, error)
-	unmarshal func(b []byte, msg proto.Message) error
+	DevEUI      lorawan.EUI64
+	DevAddr     lorawan.DevAddr
+	NwkSEncKey  lorawan.AES128Key
+	SNwkSIntKey lorawan.AES128Key
+	FNwkSIntKey lorawan.AES128Key
+	AppSKey     lorawan.AES128Key
+	NwkKey      [16]byte
+	AppKey      [16]byte
+	AppEUI      lorawan.EUI64
+	Major       lorawan.Major
+	MACVersion  lorawan.MACVersion
+	UlFcnt      uint32
+	DlFcnt      uint32
+	marshal     func(msg proto.Message) ([]byte, error)
+	unmarshal   func(b []byte, msg proto.Message) error
 }
 
 func (d *Device) SetMarshaler(opt string) {
@@ -101,7 +110,7 @@ func (d *Device) SetMarshaler(opt string) {
 	}
 }
 
-//Join sends a join request for a given device (OTAA) and rxInfo.
+//Join sends a join request for a given device (OTAA) and rxInfo. DEPRECATED, will be reimplemented.
 func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 
 	joinPhy := lorawan.PHYPayload{
@@ -136,13 +145,13 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 
 }
 
-//Uplink sends an uplink message for a given device, mType (UnconfirmedDataUp, ConfirmedDataUp), rxInfo and payload (unencrypted).
-func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string) error {
+//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
+func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) error {
 
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
 			MType: mType,
-			Major: lorawan.LoRaWANR1,
+			Major: d.Major,
 		},
 		MACPayload: &lorawan.MACPayload{
 			FHDR: lorawan.FHDR{
@@ -165,9 +174,65 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		return err
 	}
 
-	if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSKey, d.NwkSKey); err != nil {
-		fmt.Printf("set uplink mic error: %s", err)
-		return err
+	if d.MACVersion == lorawan.LoRaWAN1_0 {
+		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey); err != nil {
+			fmt.Printf("set uplink mic error: %s", err)
+			return err
+		}
+	} else if d.MACVersion == lorawan.LoRaWAN1_1 {
+		//Get the band.
+		b, err := band.GetConfig(bandName, false, lorawan.DwellTime400ms)
+		if err != nil {
+			return err
+		}
+		//Get DR index from a dr.
+		dataRate := band.DataRate{
+			Modulation:   band.Modulation(dr.Modulation),
+			SpreadFactor: dr.SpreadFactor,
+			Bandwidth:    dr.Bandwidth,
+			BitRate:      dr.BitRate,
+		}
+		txDR, err := b.GetDataRateIndex(true, dataRate)
+		if err != nil {
+			return err
+		}
+		//Get tx ch.
+		var txCh int
+		for _, defaultChannel := range []bool{true, false} {
+			i, err := b.GetUplinkChannelIndex(int(txInfo.Frequency), defaultChannel)
+			if err != nil {
+				continue
+			}
+
+			c, err := b.GetUplinkChannel(i)
+			if err != nil {
+				return err
+			}
+
+			// there could be multiple channels using the same frequency, but with different data-rates.
+			// eg EU868:
+			//  channel 1 (868.3 DR 0-5)
+			//  channel x (868.3 DR 6)
+			if c.MinDR <= txDR && c.MaxDR >= txDR {
+				txCh = i
+			}
+		}
+		//Encrypt fOPts.
+		if err := phy.EncryptFOpts(d.NwkSEncKey); err != nil {
+			log.Errorf("encrypt fopts error: %s", err)
+			return err
+		}
+
+		//Now set the MIC.
+		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, 0, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
+			log.Errorf("set uplink mic error: %s", err)
+			return err
+		}
+
+		log.Printf("Got MIC: %s\n", phy.MIC)
+
+	} else {
+		return errors.New("unknown lorawan version")
 	}
 
 	phyBytes, err := phy.MarshalBinary()
@@ -197,13 +262,6 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		fmt.Println(token.Error())
 		return token.Error()
 	}
-
-	//pErr := publish(client, "gateway/"+rxInfo.Mac+"/rx", bytes)
-
-	//Increase uplink fcnt if unconfirmed
-	/*if mType == lorawan.UnconfirmedDataUp {
-		d.UlFcnt++
-	}*/
 
 	return nil
 

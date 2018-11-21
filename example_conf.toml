@@ -7,13 +7,21 @@ password="your-password"
 [gateway]
 mac="your-gw-mac"
 
+[band]
+name="US_902_928"
+
 [device]
-eui="0000000000000000"
-address="9539da01"
-network_session_key="ac5ef815da5694767186c4a7cad414a2"
-application_session_key="12d998021d6b039ec7f8f08259cee046"
+eui="0000000000000001"
+address="00815bd9"
+network_session_encription_key="aee1da4b88979ae4f75475ff0db51c04"
+serving_network_session_integrity_key="e0422b2a0307f24b2986e5b24ca8d3d9"
+forwarding_network_session_integrity_key="bc97ea1ff62e7a3490135d989aae6bca"
+application_session_key="037882c03dd6b20724b44d623abb4f95"
 marshaler="json"
-app_key="00000002000000040000000200000004"
+nwk_key="00000000000000010000000000000001"
+app_key="00000000000000010000000000000001"
+major=0
+mac_version=1
 
 [data_rate]
 bandwith=125
@@ -29,6 +37,6 @@ lora_snr=7.0
 rf_chain=1
 rssi=-57
 
-[default_data]
-names = ["Temp", "Lat", "Lng"]
-data = [[25.0, 127.0, 2.0], [-33.4348474, 90.0, 4.0], [-70.6157308, 180.0, 4.0]]
+[raw_payload]
+payload="ff00"
+use_payload=true

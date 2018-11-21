@@ -2,5 +2,7 @@ all:
 	go build
 
 requirements:
-	go get -u github.com/andlabs/ui/...
-	go get -u github.com/BurntSushi/toml
+	dep ensure -v
+
+dev-requirements:
+	go get -u github.com/golang/dep/cmd/dep

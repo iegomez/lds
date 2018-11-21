@@ -1,3 +1,4 @@
 conf.toml
 /vendor
+/.vendor*
 lds-gui

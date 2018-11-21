@@ -50,10 +50,6 @@
   version = "1.2.0"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/iegomez/loraserver-device-sim"
-
-[[constraint]]
   name = "github.com/sirupsen/logrus"
   version = "1.2.0"
 

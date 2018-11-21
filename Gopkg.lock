@@ -71,14 +71,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bc4980759e138041ecd526dc3223f2708854fb4a6e9f1ccf0aebf28036d65a26"
-  name = "github.com/iegomez/loraserver-device-sim"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "6ea9922371647cfae4eabad1a7314bb81de11930"
-
-[[projects]]
-  branch = "master"
   digest = "1:c231cdb133bc5f7267b07770e84ad6a0007bb26e99a97a7d1d6b20dd25913551"
   name = "github.com/jacobsa/crypto"
   packages = [
@@ -126,14 +118,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:48b757e61d662021f49a6a0afc67dacae27ee0c3a8f858d927126bcdf49222d3"
+  digest = "1:f343f077a5b0bc3a3788b3a04e24dd417e3e25b2acb529c413e212d2c42416ef"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "ec83556a53fe16b65c452a104ea9d1e86a671852"
+  revision = "0cf1ed9e522b7dbb416f080a5c8003de9b702bf4"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -144,9 +136,11 @@
     "github.com/andlabs/ui/winmanifest",
     "github.com/brocaar/loraserver/api/gw",
     "github.com/brocaar/lorawan",
+    "github.com/brocaar/lorawan/band",
     "github.com/eclipse/paho.mqtt.golang",
+    "github.com/golang/protobuf/jsonpb",
+    "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes",
-    "github.com/iegomez/loraserver-device-sim",
     "github.com/sirupsen/logrus",
   ]
   solver-name = "gps-cdcl"
