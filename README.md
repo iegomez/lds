@@ -107,6 +107,8 @@ Values may be added using the `Add value` button and setting the options:
 
 ### Building
 
+The package is written in Go and tested with v 1.10.3. Make sure you have go installed before.  
+
 The GUI is built using https://github.com/andlabs/ui, so please check that repo to see requitrements for your system. Once those are met, you may build the package like this: 
 
 ```
