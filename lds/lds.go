@@ -179,6 +179,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 			fmt.Printf("set uplink mic error: %s", err)
 			return err
 		}
+		phy.ValidateUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey)
 	} else if d.MACVersion == lorawan.LoRaWAN1_1 {
 		//Get the band.
 		b, err := band.GetConfig(bandName, false, lorawan.DwellTime400ms)
