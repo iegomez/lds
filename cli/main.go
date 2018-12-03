@@ -265,7 +265,7 @@ func run() {
 				if rand.Intn(10) < 5 {
 					mult *= -1
 				}
-				arr := lds.GenerateFloat(float32(mult)*float32(v[0]+rand.Float64()/100), float32(v[1]), int32(v[2]))
+				arr := lds.GenerateFloat(float32(v[0]+float64(mult)*rand.Float64()/100), float32(v[1]), int32(v[2]))
 				payload = append(payload, arr...)
 
 			}
