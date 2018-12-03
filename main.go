@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/golang/protobuf/ptypes"
-	"github.com/iegomez/lds-gui/lds"
+	"github.com/iegomez/lds/lds"
 
 	"flag"
 	"fmt"

@@ -1,5 +1,5 @@
 all:
-	go build
+	go build -o gui
 
 requirements:
 	dep ensure -v

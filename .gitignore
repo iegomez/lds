@@ -3,7 +3,7 @@ aquila_conf.toml
 local_conf.toml
 /vendor
 /.vendor*
-lds-gui
+lds
 cli/cli
 cli/conf.toml
 scroll_test
