@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/andlabs/ui"
-	_ "github.com/andlabs/ui/winmanifest"
-
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
 	lwband "github.com/brocaar/lorawan/band"
@@ -21,8 +18,6 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/sirupsen/logrus"
 )
-
-var mainwin *ui.Window
 
 type mqtt struct {
 	Server   string `toml:"server"`
