@@ -3,7 +3,9 @@
 This is an utility program to simulate ABP devices uplinks for the [loraserver](https://loraserver.io) project.  Basically, it acts as if a `lora-gateway-bridge` had received a packet and publishes through MQTT for a corresponding `loraserver` to receive it.
 It supports all bands and configurations LoRaWAN versions 1.0 and 1.1.  
 
-It has a simple but complete GUI (built with https://github.com/andlabs/ui) that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.  
+It has a simple but complete GUI (built with https://github.com/andlabs/ui) that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
+
+The program may also be executed in cli mode, with an additional interval setting to send every <interval> seconds. Check the cli dir for the code and build it with `go build`.
 
 ### Conf
 

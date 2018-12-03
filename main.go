@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/hex"
+	"os"
 	"strconv"
 
 	"github.com/golang/protobuf/ptypes"
 	"github.com/iegomez/lds-gui/lds"
 
+	"flag"
 	"fmt"
 	"time"
 
@@ -131,11 +133,12 @@ type rawPayload struct {
 	uiUseRaw  *ui.Checkbox
 }
 
-var confFile string
-var config tomlConfig
+var confFile *string
+var config *tomlConfig
 var dataBox *ui.Box
+var dataFormBox *ui.Box
 var dataForm *ui.Form
-var data []SendableValue
+var data []*SendableValue
 var stop bool
 var marshalers = map[int]string{0: "json", 1: "protobuf", 2: "v2_json"}
 var bands = []lwband.Name{
@@ -157,74 +160,74 @@ var uiInterval *ui.Slider
 var runBtn *ui.Button
 var stopBtn *ui.Button
 
-func checkConfig() {
+func importConf() {
 
-	fmt.Println("running config")
+	if config == nil {
+		cMqtt := mqtt{
+			uiServer:   ui.NewEntry(),
+			uiUser:     ui.NewEntry(),
+			uiPassword: ui.NewPasswordEntry(),
+		}
 
-	cMqtt := mqtt{
-		uiServer:   ui.NewEntry(),
-		uiUser:     ui.NewEntry(),
-		uiPassword: ui.NewPasswordEntry(),
+		cDev := device{
+			uiEUI:         ui.NewEntry(),
+			uiAddress:     ui.NewEntry(),
+			uiNwkSEncKey:  ui.NewEntry(),
+			uiSNwkSIntKey: ui.NewEntry(),
+			uiFNwkSIntKey: ui.NewEntry(),
+			uiAppSKey:     ui.NewEntry(),
+			uiMarshaler:   ui.NewCombobox(),
+			uiNwkKey:      ui.NewEntry(),
+			uiAppKey:      ui.NewEntry(),
+			uiMajor:       ui.NewCombobox(),
+			uiMACVersion:  ui.NewCombobox(),
+			uiMType:       ui.NewCombobox(),
+		}
+
+		cGw := gateway{
+			uiMAC: ui.NewEntry(),
+		}
+
+		cBand := band{
+			uiName: ui.NewCombobox(),
+		}
+
+		cDr := dataRate{
+			uiBandwith:     ui.NewEntry(),
+			uiBitRate:      ui.NewEntry(),
+			uiSpreadFactor: ui.NewEntry(),
+		}
+
+		cRx := rxInfo{
+			uiChannel:   ui.NewEntry(),
+			uiCodeRate:  ui.NewEntry(),
+			uiCrcStatus: ui.NewEntry(),
+			uiFrequency: ui.NewEntry(),
+			uiLoRaSNR:   ui.NewEntry(),
+			uiRfChain:   ui.NewEntry(),
+			uiRssi:      ui.NewEntry(),
+		}
+
+		dd := defaultData{}
+
+		cPl := rawPayload{
+			uiPayload: ui.NewEntry(),
+			uiUseRaw:  ui.NewCheckbox("Select to send raw bytes (hex encoded) instead of encoded data."),
+		}
+
+		config = &tomlConfig{
+			MQTT:        cMqtt,
+			Band:        cBand,
+			Device:      cDev,
+			GW:          cGw,
+			DR:          cDr,
+			RXInfo:      cRx,
+			DefaultData: dd,
+			RawPayload:  cPl,
+		}
 	}
 
-	cDev := device{
-		uiEUI:         ui.NewEntry(),
-		uiAddress:     ui.NewEntry(),
-		uiNwkSEncKey:  ui.NewEntry(),
-		uiSNwkSIntKey: ui.NewEntry(),
-		uiFNwkSIntKey: ui.NewEntry(),
-		uiAppSKey:     ui.NewEntry(),
-		uiMarshaler:   ui.NewCombobox(),
-		uiNwkKey:      ui.NewEntry(),
-		uiAppKey:      ui.NewEntry(),
-		uiMajor:       ui.NewCombobox(),
-		uiMACVersion:  ui.NewCombobox(),
-		uiMType:       ui.NewCombobox(),
-	}
-
-	cGw := gateway{
-		uiMAC: ui.NewEntry(),
-	}
-
-	cBand := band{
-		uiName: ui.NewCombobox(),
-	}
-
-	cDr := dataRate{
-		uiBandwith:     ui.NewEntry(),
-		uiBitRate:      ui.NewEntry(),
-		uiSpreadFactor: ui.NewEntry(),
-	}
-
-	cRx := rxInfo{
-		uiChannel:   ui.NewEntry(),
-		uiCodeRate:  ui.NewEntry(),
-		uiCrcStatus: ui.NewEntry(),
-		uiFrequency: ui.NewEntry(),
-		uiLoRaSNR:   ui.NewEntry(),
-		uiRfChain:   ui.NewEntry(),
-		uiRssi:      ui.NewEntry(),
-	}
-
-	dd := defaultData{}
-
-	cPl := rawPayload{
-		uiPayload: ui.NewEntry(),
-		uiUseRaw:  ui.NewCheckbox("Select to send raw bytes (hex encoded) instead of encoded data."),
-	}
-
-	config = tomlConfig{
-		MQTT:        cMqtt,
-		Band:        cBand,
-		Device:      cDev,
-		GW:          cGw,
-		DR:          cDr,
-		RXInfo:      cRx,
-		DefaultData: dd,
-		RawPayload:  cPl,
-	}
-
-	if _, err := toml.DecodeFile(confFile, &config); err != nil {
+	if _, err := toml.DecodeFile(*confFile, &config); err != nil {
 		log.Println(err)
 		return
 	}
@@ -305,8 +308,21 @@ func checkConfig() {
 	config.RawPayload.uiPayload.SetText(config.RawPayload.Payload)
 	config.RawPayload.uiUseRaw.SetChecked(config.RawPayload.UseRaw)
 
-	fmt.Println("config complete")
+}
 
+func exportConf(filename string) {
+	f, err := os.Create(fmt.Sprintf("%s.toml", filename))
+	if err != nil {
+		log.Errorf("export error: %s", err)
+		return
+	}
+	encoder := toml.NewEncoder(f)
+	err = encoder.Encode(config)
+	if err != nil {
+		log.Errorf("export error: %s", err)
+		return
+	}
+	log.Infof("exported conf file %s", f.Name())
 }
 
 func makeMQTTForm() ui.Control {
@@ -320,20 +336,31 @@ func makeMQTTForm() ui.Control {
 	entryForm := ui.NewForm()
 	entryForm.SetPadded(true)
 
-	button := ui.NewButton("Open Configuration")
+	importBtn := ui.NewButton("Import conf")
 	entry := ui.NewEntry()
 	entry.SetReadOnly(true)
-	button.OnClicked(func(*ui.Button) {
+	importBtn.OnClicked(func(*ui.Button) {
 		filename := ui.OpenFile(mainwin)
-		fmt.Printf("opening: %s\n", filename)
 		if filename != "" {
-			confFile = filename
-			fmt.Println("gonna run config")
-			checkConfig()
+			confFile = &filename
+			importConf()
 		}
 	})
 
-	hbox.Append(button, false)
+	exportFile := ui.NewEntry()
+	exportBtn := ui.NewButton("Export conf")
+
+	exportBtn.OnClicked(func(*ui.Button) {
+		outName := exportFile.Text()
+		if outName == "" {
+			outName = fmt.Sprintf("export_conf_%d", time.Now().UnixNano())
+		}
+		exportConf(outName)
+	})
+
+	hbox.Append(importBtn, false)
+	hbox.Append(exportFile, false)
+	hbox.Append(exportBtn, false)
 
 	vbox.Append(ui.NewHorizontalSeparator(), false)
 
@@ -438,7 +465,7 @@ func makeLoRaForm() ui.Control {
 
 func makeDataForm() ui.Control {
 
-	data = make([]SendableValue, 0)
+	data = make([]*SendableValue, 0)
 
 	dataBox := ui.NewVerticalBox()
 	dataBox.SetPadded(true)
@@ -447,8 +474,11 @@ func makeDataForm() ui.Control {
 	hbox.SetPadded(true)
 	dataBox.Append(hbox, false)
 
-	dataForm := ui.NewForm()
-	dataForm.SetPadded(true)
+	/*dataForm := ui.NewForm()
+	dataForm.SetPadded(true)*/
+
+	dataFormBox = ui.NewVerticalBox()
+	dataFormBox.SetPadded(true)
 
 	name := ui.NewEntry()
 
@@ -456,7 +486,7 @@ func makeDataForm() ui.Control {
 	entry := ui.NewEntry()
 	entry.SetReadOnly(true)
 	button.OnClicked(func(*ui.Button) {
-		v := SendableValue{
+		v := &SendableValue{
 			value:    ui.NewEntry(),
 			maxVal:   ui.NewEntry(),
 			numBytes: ui.NewEntry(),
@@ -465,14 +495,14 @@ func makeDataForm() ui.Control {
 			del:      ui.NewButton("Delete"),
 			name:     name.Text(),
 		}
-		addValue(v, dataForm)
+		addValue(v, dataFormBox)
 		name.SetText("")
 	})
 
 	if len(config.DefaultData.Names) == len(config.DefaultData.Data) {
 		for i, name := range config.DefaultData.Names {
 			valueData := config.DefaultData.Data[i]
-			v := SendableValue{
+			v := &SendableValue{
 				value:    ui.NewEntry(),
 				maxVal:   ui.NewEntry(),
 				numBytes: ui.NewEntry(),
@@ -485,7 +515,7 @@ func makeDataForm() ui.Control {
 			v.maxVal.SetText(fmt.Sprintf("%f", valueData[1]))
 			v.numBytes.SetText(fmt.Sprintf("%d", int(valueData[2])))
 			v.isFloat.SetChecked(true)
-			addValue(v, dataForm)
+			addValue(v, dataFormBox)
 		}
 	}
 
@@ -546,43 +576,57 @@ func makeDataForm() ui.Control {
 	dataBox.Append(group, true)
 
 	group.SetChild(ui.NewNonWrappingMultilineEntry())
-	group.SetChild(dataForm)
+	group.SetChild(dataFormBox)
 
 	return dataBox
 }
 
-func addValue(v SendableValue, dataForm *ui.Form) {
+func addValue(v *SendableValue, dataFormBox *ui.Box) {
 	data = append(data, v)
-	dataForm.Append(fmt.Sprintf("%s value", v.name), v.value, false)
-	dataForm.Append(fmt.Sprintf("%s max value", v.name), v.maxVal, false)
-	dataForm.Append(fmt.Sprintf("%s num bytes", v.name), v.numBytes, false)
-	dataForm.Append(fmt.Sprintf("%s is float", v.name), v.isFloat, false)
-	dataForm.Append("Delete", v.del, false)
+
+	//dataFormWrapper := ui.NewVerticalBox()
+	dataForm := ui.NewHorizontalBox()
+	nameLbl := ui.NewLabel(v.name)
+
+	dataForm.Append(nameLbl, true)
+	//dataFormWrapper.Append(dataForm, false)
+
+	dataForm.SetPadded(true)
+	vLbl := ui.NewLabel("Value")
+	dataForm.Append(vLbl, false)
+	dataForm.Append(v.value, false)
+	mvLbl := ui.NewLabel("Max value")
+	dataForm.Append(mvLbl, false)
+	dataForm.Append(v.maxVal, false)
+	nbLbl := ui.NewLabel("# bytes")
+	dataForm.Append(nbLbl, false)
+	dataForm.Append(v.numBytes, false)
+	dataForm.Append(v.isFloat, false)
+	dataForm.Append(v.del, true)
+	dataFormBox.Append(dataForm, false)
 	v.del.OnClicked(func(*ui.Button) {
 		if len(data) == 1 {
-			data = make([]SendableValue, 0)
+			data = make([]*SendableValue, 0)
 		} else {
 			copy(data[v.index:], data[v.index+1:])
-			data[len(data)-1] = SendableValue{}
+			data[len(data)-1] = &SendableValue{}
 			data = data[:len(data)-1]
 			for k := v.index; k < len(data); k++ {
 				data[k].index--
 			}
 		}
-		for i := 4; i >= 0; i-- {
-			dataForm.Delete(5*v.index + i)
-		}
+
+		dataFormBox.Delete(v.index)
+
 	})
 }
 
 func setupUI() {
-	//Set default conf file.
-	confFile = "conf.toml"
 
 	//Try to initialize default values.
-	checkConfig()
+	importConf()
 
-	mainwin = ui.NewWindow("Loraserver device simulator", 640, 480, true)
+	mainwin = ui.NewWindow("Loraserver device simulator", 600, 480, true)
 	mainwin.OnClosing(func(*ui.Window) bool {
 		ui.Quit()
 		return true
@@ -609,6 +653,10 @@ func setupUI() {
 }
 
 func main() {
+
+	confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
+	flag.Parse()
+
 	ui.Main(setupUI)
 }
 
