@@ -1,6 +1,7 @@
 conf.toml
 aquila_conf.toml
 local_conf.toml
+test_conf.toml
 /vendor
 /.vendor*
 lds
