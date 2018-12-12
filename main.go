@@ -530,7 +530,7 @@ func makeDataForm() ui.Control {
 	runBtn.OnClicked(func(*ui.Button) {
 		stopBtn.Enable()
 		runBtn.Disable()
-		go run()
+		go handledRun()
 	})
 
 	stopBtn.OnClicked(func(*ui.Button) {
@@ -658,6 +658,10 @@ func main() {
 	flag.Parse()
 
 	ui.Main(setupUI)
+}
+
+func handledRun() {
+	ui.QueueMain(run)
 }
 
 func run() {
@@ -931,9 +935,9 @@ func run() {
 		if uiSendOnce.Selected() == 0 {
 			stop = false
 			//Let mqtt client publish first, then stop it.
-			time.Sleep(2 * time.Second)
-			stopBtn.Disable()
-			runBtn.Enable()
+			//time.Sleep(2 * time.Second)
+			ui.QueueMain(stopBtn.Disable)
+			ui.QueueMain(runBtn.Enable)
 			return
 		}
 

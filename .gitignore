@@ -1,10 +1,10 @@
-conf.toml
-aquila_conf.toml
-local_conf.toml
-test_conf.toml
+!example_conf.toml
+*.toml
 /vendor
 /.vendor*
 lds
 cli/cli
 cli/conf.toml
 scroll_test
+*.log
+gui
