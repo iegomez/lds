@@ -53,11 +53,13 @@ rssi=-57
 
 [raw_payload]
 payload="ff00"
-use_payload=true
+use_raw=false
 
 [default_data]
 names = ["Temp", "Lat", "Lng"]
-data = [[25.0, 127.0, 2.0], [-33.4348474, 90.0, 4.0], [-70.6157308, 180.0, 4.0]]
+#float and int are supported
+types = ["int", "float", "float"]
+data = [[25, 255, 1], [-33.4348474, 90.0, 4.0], [-70.6157308, 180.0, 4.0]]
 ```
 
 ### Data
@@ -105,7 +107,7 @@ func GenerateInt(originalInt, numBytes int32) []byte {
 
 Values may be added using the `Add value` button and setting the options:
 
-![](images/data_encoding.png?raw=true)
+![](images/lds_screen.png?raw=true)
 
 ### Building
 

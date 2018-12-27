@@ -111,8 +111,9 @@ type tomlConfig struct {
 
 //defaultData holds optional default encoded data.
 type defaultData struct {
-	Names []string    `toml:"names"`
-	Data  [][]float64 `toml:"data"`
+	Names []string        `toml:"names"`
+	Data  [][]interface{} `toml:"data"`
+	Types []string        `toml:"types"`
 }
 
 type SendableValue struct {
@@ -511,10 +512,17 @@ func makeDataForm() ui.Control {
 				del:      ui.NewButton("Delete"),
 				name:     name,
 			}
-			v.value.SetText(fmt.Sprintf("%f", valueData[0]))
-			v.maxVal.SetText(fmt.Sprintf("%f", valueData[1]))
-			v.numBytes.SetText(fmt.Sprintf("%d", int(valueData[2])))
-			v.isFloat.SetChecked(true)
+			if config.DefaultData.Types[i] == "float" {
+				v.value.SetText(fmt.Sprintf("%f", valueData[0].(float64)))
+				v.maxVal.SetText(fmt.Sprintf("%f", valueData[1].(float64)))
+				v.numBytes.SetText(fmt.Sprintf("%d", int(valueData[2].(float64))))
+				v.isFloat.SetChecked(true)
+			} else {
+				v.value.SetText(fmt.Sprintf("%d", valueData[0].(int64)))
+				v.maxVal.SetText(fmt.Sprintf("%d", valueData[1].(int64)))
+				v.numBytes.SetText(fmt.Sprintf("%d", valueData[2].(int64)))
+				v.isFloat.SetChecked(false)
+			}
 			addValue(v, dataFormBox)
 		}
 	}
