@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
-	"github.com/iegomez/imgui-go"
+	"github.com/inkyblackness/imgui-go"
 )
 
 func main() {
@@ -52,7 +52,10 @@ func main() {
 	counter := 0
 	var clearColor imgui.Vec4
 
-	var testStr string = "hola"
+	var str1 = "str1"
+	var str2 = "str2"
+	var str3 = "str3"
+	var str4 = "str4"
 
 	for !window.ShouldClose() {
 		glfw.PollEvents()
@@ -71,10 +74,30 @@ func main() {
 			}
 			imgui.SameLine()
 			imgui.Text(fmt.Sprintf("counter = %d", counter))
-			if imgui.InputText("test", &testStr, int64(len(testStr)+300), imgui.InputTextFlagsNone) {
-				fmt.Println("works?")
-			}
-			imgui.Text(testStr)
+			imgui.InputTextMultilineV("line 1", &str1, imgui.Vec2{X: 0, Y: 0}, imgui.InputTextFlagsCallbackCharFilter, func(data imgui.InputTextCallbackData) int32 {
+				fmt.Println(data.Buffer())
+				if len(str1) >= 6 {
+					return 1
+				}
+				return 0
+			})
+			imgui.Text(str1)
+			imgui.InputText("line 2", &str2)
+			imgui.Text(str2)
+			imgui.InputTextV("line 3", &str3, imgui.InputTextFlagsCallbackAlways, func(data imgui.InputTextCallbackData) int32 {
+				buf := data.Buffer()
+				fmt.Printf("buff len: %d - char: %s - key: %d - flags: %d\n", len(string(data.Buffer())), string(data.EventChar()), data.EventKey(), data.EventFlag())
+				if len(string(buf)) > 8 {
+					data.DeleteBytes(4, len(data.Buffer())-4)
+					data.InsertBytes(4, []byte(" m"))
+					//data.MarkBufferModified()
+					return 1
+				}
+				return 0
+			})
+			imgui.Text(str3)
+			imgui.InputTextMultiline("line 4", &str4)
+			imgui.Text(str4)
 			//label string, buf *string, bufSize int64, flags int
 
 		}
@@ -108,4 +131,14 @@ func main() {
 		window.SwapBuffers()
 		<-time.After(time.Millisecond * 25)
 	}
+}
+
+func cb(data imgui.InputTextCallbackData) int32 {
+	fmt.Printf("buff len: %d - char: %s - key: %d - flags: %d\n", len(string(data.Buffer())), string(data.EventChar()), data.EventKey(), data.EventFlag())
+	if len(string(data.Buffer())) > 8 {
+		data.SetEventChar(0)
+		data.MarkBufferModified()
+		return 1
+	}
+	return 0
 }
