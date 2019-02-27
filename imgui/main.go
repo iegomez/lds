@@ -70,26 +70,13 @@ type rxInfo struct {
 	RssiS      string
 }
 
-type tomlConfig struct {
-	MQTT       mqtt           `toml:"mqtt"`
-	Band       band           `toml:"band"`
-	Device     device         `timl:"device"`
-	GW         gateway        `toml:"gateway"`
-	DR         dataRate       `toml:"data_rate"`
-	RXInfo     rxInfo         `toml:"rx_info"`
-	DeviceData []*deviceDatum `toml:"default_data"`
-	RawPayload rawPayload     `toml:"raw_payload"`
-}
-
-//deviceDatum holds optional default encoded data.
-type deviceDatum struct {
+type encodedType struct {
 	Name     string  `toml:"name"`
 	Value    float64 `toml:"value"`
 	MaxValue float64 `toml:"max_value"`
 	MinValue float64 `toml:"min_value"`
 	IsFloat  bool    `toml:"is_float"`
 	NumBytes int     `toml:"num_bytes"`
-	Index    int
 	//String representations.
 	ValueS    string
 	MinValueS string
@@ -101,6 +88,17 @@ type deviceDatum struct {
 type rawPayload struct {
 	Payload string `toml:"payload"`
 	UseRaw  bool   `toml:"use_raw"`
+}
+
+type tomlConfig struct {
+	MQTT        mqtt           `toml:"mqtt"`
+	Band        band           `toml:"band"`
+	Device      device         `timl:"device"`
+	GW          gateway        `toml:"gateway"`
+	DR          dataRate       `toml:"data_rate"`
+	RXInfo      rxInfo         `toml:"rx_info"`
+	RawPayload  rawPayload     `toml:"raw_payload"`
+	EncodedType []*encodedType `toml:"encoded_type"`
 }
 
 var confFile *string
@@ -127,14 +125,20 @@ var bandwidths = []int{50, 125, 250, 500}
 var spreadFactors = []int{7, 8, 9, 10, 11, 12}
 
 var sendOnce bool
-var interval int
+var interval int32
 
-var output string
+type outputWriter struct {
+	Text string
+}
 
-var str1 = "test"
-var str2 = "prueba"
-var str3 = "otro"
-var testStrings = []*string{&str1, &str2, &str3}
+func (o *outputWriter) Write(p []byte) (n int, err error) {
+	o.Text = fmt.Sprintf("%s%s", o.Text, string(p))
+	return len(p), nil
+}
+
+var ow = &outputWriter{Text: ""}
+var repeat bool
+var running bool
 
 func importConf() {
 
@@ -151,25 +155,32 @@ func importConf() {
 
 		cRx := rxInfo{}
 
-		dd := []*deviceDatum{}
-
 		cPl := rawPayload{}
 
+		et := []*encodedType{}
+
 		config = &tomlConfig{
-			MQTT:       cMqtt,
-			Band:       cBand,
-			Device:     cDev,
-			GW:         cGw,
-			DR:         cDr,
-			RXInfo:     cRx,
-			DeviceData: dd,
-			RawPayload: cPl,
+			MQTT:        cMqtt,
+			Band:        cBand,
+			Device:      cDev,
+			GW:          cGw,
+			DR:          cDr,
+			RXInfo:      cRx,
+			RawPayload:  cPl,
+			EncodedType: et,
 		}
 	}
 
 	if _, err := toml.DecodeFile(*confFile, &config); err != nil {
 		log.Println(err)
 		return
+	}
+
+	for i := 0; i < len(config.EncodedType); i++ {
+		config.EncodedType[i].ValueS = strconv.FormatFloat(config.EncodedType[i].Value, 'f', -1, 64)
+		config.EncodedType[i].MaxValueS = strconv.FormatFloat(config.EncodedType[i].MaxValue, 'f', -1, 64)
+		config.EncodedType[i].MinValueS = strconv.FormatFloat(config.EncodedType[i].MinValue, 'f', -1, 64)
+		config.EncodedType[i].NumBytesS = strconv.Itoa(config.EncodedType[i].NumBytes)
 	}
 
 	//Fill string representations of numeric values.
@@ -180,38 +191,33 @@ func importConf() {
 	config.RXInfo.LoRASNRS = strconv.FormatFloat(config.RXInfo.LoRaSNR, 'f', -1, 64)
 	config.RXInfo.RfChainS = strconv.Itoa(config.RXInfo.RfChain)
 	config.RXInfo.RssiS = strconv.Itoa(config.RXInfo.Rssi)
-
-	//Set indexes of device data so we can delete fields.
-	for i := 0; i < len(config.DeviceData); i++ {
-		deviceDatum := config.DeviceData[i]
-		deviceDatum.Index = i
-		deviceDatum.ValueS = strconv.FormatFloat(deviceDatum.Value, 'f', -1, 64)
-		deviceDatum.MaxValueS = strconv.FormatFloat(deviceDatum.MaxValue, 'f', -1, 64)
-		deviceDatum.MinValueS = strconv.FormatFloat(deviceDatum.MinValue, 'f', -1, 64)
-		deviceDatum.NumBytesS = strconv.Itoa(deviceDatum.NumBytes)
-	}
 }
 
 func beginMQTTForm() {
-	imgui.Begin("MQTT Configuration")
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
+	imgui.Begin("Connection")
 	imgui.Text("MQTT configuration")
+	imgui.PushItemWidth(250.0)
 	imgui.InputText("Server", &config.MQTT.Server)
 	imgui.InputText("User", &config.MQTT.User)
 	imgui.InputTextV("Password", &config.MQTT.Password, imgui.InputTextFlagsPassword, nil)
 	imgui.Text("Gateway")
 	imgui.InputText("MAC", &config.GW.MAC)
-	imgui.Text(config.MQTT.Server)
 	imgui.End()
 }
 
 func beginDeviceForm() {
-	imgui.Begin("Device Configuration")
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 200})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 320})
+	imgui.Begin("Device")
+	imgui.PushItemWidth(250.0)
 	imgui.InputTextV("Device EUI", &config.Device.EUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.EUI, 16))
 	imgui.InputTextV("Device address", &config.Device.Address, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.Address, 8))
-	imgui.InputTextV("Network session encryption key", &config.Device.NwkSEncKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkSEncKey, 32))
-	imgui.InputTextV("Serving network session integration key", &config.Device.SNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.SNwkSIntKey, 32))
-	imgui.InputTextV("Forwarding network session integration key", &config.Device.FNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.FNwkSIntKey, 32))
-	imgui.InputTextV("Application session key", &config.Device.AppSKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppSKey, 32))
+	imgui.InputTextV("NwkSEncKey", &config.Device.NwkSEncKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkSEncKey, 32))
+	imgui.InputTextV("SNwkSIntkey", &config.Device.SNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.SNwkSIntKey, 32))
+	imgui.InputTextV("FNwkSIntKey", &config.Device.FNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.FNwkSIntKey, 32))
+	imgui.InputTextV("AppSKey", &config.Device.AppSKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppSKey, 32))
 	imgui.InputTextV("NwkKey", &config.Device.NwkKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkKey, 32))
 	imgui.InputTextV("AppKey", &config.Device.AppKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppKey, 32))
 	if imgui.BeginCombo("Marshaler", config.Device.Marshaler) {
@@ -251,8 +257,10 @@ func beginDeviceForm() {
 }
 
 func beginLoRaForm() {
-
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 530})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 350})
 	imgui.Begin("LoRa Configuration")
+	imgui.PushItemWidth(250.0)
 	if imgui.BeginCombo("Band", string(config.Band.Name)) {
 		for _, band := range bands {
 			if imgui.SelectableV(string(band), band == config.Band.Name, 0, imgui.Vec2{}) {
@@ -294,46 +302,83 @@ func beginLoRaForm() {
 
 	imgui.InputTextV("Rssi", &config.RXInfo.RssiS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.RssiS, 10, &config.RXInfo.Rssi))
 
-	imgui.Text(strconv.FormatFloat(config.RXInfo.LoRaSNR, 'f', -1, 64))
-
 	imgui.End()
 }
 
 func beginDataForm() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 510})
 	imgui.Begin("Data")
 	imgui.Text("Raw data")
+	imgui.PushItemWidth(150.0)
 	imgui.InputTextV("Raw bytes in hex", &config.RawPayload.Payload, imgui.InputTextFlagsCharsHexadecimal, nil)
+	imgui.SameLine()
 	imgui.Checkbox("Send raw", &config.RawPayload.UseRaw)
-
-	imgui.Text("Encoded data")
-
-	/*for i := 0; i < len(config.DeviceData); i++ {
-		deviceDatum := config.DeviceData[i]
-		imgui.Text(strconv.Itoa(deviceDatum.Index))
-		imgui.InputText("Name", &deviceDatum.Name)
-		imgui.Checkbox("Float", &deviceDatum.IsFloat)
-		imgui.InputTextV("Num bytes", &deviceDatum.NumBytesS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(deviceDatum.NumBytesS, 3, &deviceDatum.NumBytes))
-		imgui.InputTextV("Value", &deviceDatum.ValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(deviceDatum.ValueS, &deviceDatum.Value))
-		imgui.InputTextV("Max value", &deviceDatum.MaxValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(deviceDatum.MaxValueS, &deviceDatum.MaxValue))
-		imgui.InputTextV("Min value", &deviceDatum.MinValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(deviceDatum.MinValueS, &deviceDatum.MinValue))
-	}*/
-	for i := 0; i < len(testStrings); i++ {
-		imgui.InputText(fmt.Sprintf("test %d", i), testStrings[i])
+	imgui.SliderInt("X", &interval, 1, 60)
+	imgui.SameLine()
+	imgui.Checkbox("Send every X seconds", &repeat)
+	if imgui.Button("Send") {
+		log.Println("should send")
+		running = repeat
+	}
+	if repeat {
+		if imgui.Button("Stop") {
+			log.Println("should stop")
+			running = false
+		}
 	}
 
-	/*
-		//deviceDatum holds optional default encoded data.
-		type deviceDatum struct {
-			Name     string  `toml:"name"`
-			Value    float64 `toml:"value"`
-			MaxValue float64 `toml:"max_value"`
-			MinValue float64 `toml:"min_value"`
-			IsFloat  string  `toml:"is_float"`
-			NumBytes int     `toml:"num_bytes"`
-			Index    int
+	imgui.Text("Encoded data")
+	if imgui.Button("Add encoded type") {
+		et := &encodedType{
+			Name:      "New type",
+			ValueS:    "0",
+			MaxValueS: "0",
+			MinValueS: "0",
+			NumBytesS: "0",
 		}
-	*/
+		config.EncodedType = append(config.EncodedType, et)
+		log.Println("added new type")
+	}
 
+	for i := 0; i < len(config.EncodedType); i++ {
+		delete := false
+		imgui.Separator()
+		imgui.InputText(fmt.Sprintf("Name     ##%d", i), &config.EncodedType[i].Name)
+		imgui.SameLine()
+		imgui.InputTextV(fmt.Sprintf("Bytes    ##%d", i), &config.EncodedType[i].NumBytesS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(config.EncodedType[i].NumBytesS, 10, &config.EncodedType[i].NumBytes))
+		imgui.SameLine()
+		imgui.Checkbox(fmt.Sprintf("Float##%d", i), &config.EncodedType[i].IsFloat)
+		imgui.SameLine()
+		if imgui.Button(fmt.Sprintf("Delete##%d", i)) {
+			delete = true
+		}
+		imgui.InputTextV(fmt.Sprintf("Value    ##%d", i), &config.EncodedType[i].ValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].ValueS, &config.EncodedType[i].Value))
+		imgui.SameLine()
+		imgui.InputTextV(fmt.Sprintf("Max value##%d", i), &config.EncodedType[i].MaxValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].MaxValueS, &config.EncodedType[i].MaxValue))
+		imgui.SameLine()
+		imgui.InputTextV(fmt.Sprintf("Min value##%d", i), &config.EncodedType[i].MinValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].MinValueS, &config.EncodedType[i].MinValue))
+		if delete {
+			if len(config.EncodedType) == 1 {
+				config.EncodedType = make([]*encodedType, 0)
+			} else {
+				copy(config.EncodedType[i:], config.EncodedType[i+1:])
+				config.EncodedType[len(config.EncodedType)-1] = &encodedType{}
+				config.EncodedType = config.EncodedType[:len(config.EncodedType)-1]
+			}
+		}
+	}
+	imgui.Separator()
+
+	imgui.End()
+}
+
+func beginOutput() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 530})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 350})
+	imgui.Begin("Output")
+	//imgui.PushStyleColor(imgui.StyleColorID(1), imgui.Vec4{X: 0.2, Y: 0.2, Z: 0.2, W: 0.5})
+	imgui.Text(ow.Text)
 	imgui.End()
 }
 
@@ -346,12 +391,14 @@ func main() {
 	}
 	defer glfw.Terminate()
 
+	log.SetOutput(ow)
+
 	glfw.WindowHint(glfw.ContextVersionMajor, 3)
 	glfw.WindowHint(glfw.ContextVersionMinor, 2)
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, 1)
 
-	window, err := glfw.CreateWindow(1280, 720, "ImGui-Go GLFW+OpenGL3 example", nil, nil)
+	window, err := glfw.CreateWindow(1200, 900, "LoRaServer ABP device simulator", nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -382,12 +429,11 @@ func main() {
 	for !window.ShouldClose() {
 		glfw.PollEvents()
 		impl.NewFrame()
-
 		beginMQTTForm()
 		beginDeviceForm()
 		beginLoRaForm()
 		beginDataForm()
-
+		beginOutput()
 		displayWidth, displayHeight := window.GetFramebufferSize()
 		gl.Viewport(0, 0, int32(displayWidth), int32(displayHeight))
 		gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W)
@@ -401,15 +447,290 @@ func main() {
 	}
 }
 
-func cb(data imgui.InputTextCallbackData) int32 {
-	fmt.Printf("buff len: %d - char: %s - key: %d - flags: %d\n", len(string(data.Buffer())), string(data.EventChar()), data.EventKey(), data.EventFlag())
-	if len(string(data.Buffer())) > 8 {
-		data.SetEventChar(0)
-		data.MarkBufferModified()
-		return 1
+/*
+func run() {
+
+	//Connect to the broker
+	opts := MQTT.NewClientOptions()
+	opts.AddBroker(config.MQTT.Server)
+	opts.SetUsername(config.MQTT.User)
+	opts.SetPassword(config.MQTT.Password)
+
+	client := MQTT.NewClient(opts)
+
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		log.Println("Connection error")
+		log.Println(token.Error())
 	}
-	return 0
+
+	log.Println("Connection established.")
+
+	//Build your node with known keys (ABP).
+	nwkSEncHexKey := config.Device.NwkSEncKey
+	sNwkSIntHexKey := config.Device.SNwkSIntKey
+	fNwkSIntHexKey := config.Device.FNwkSIntKey
+	appSHexKey := config.Device.AppSKey
+	devHexAddr := config.Device.Address
+	devAddr, err := lds.HexToDevAddress(devHexAddr)
+	if err != nil {
+		log.Printf("dev addr error: %s", err)
+	}
+
+	nwkSEncKey, err := lds.HexToKey(nwkSEncHexKey)
+	if err != nil {
+		log.Printf("nwkSEncKey error: %s", err)
+	}
+
+	sNwkSIntKey, err := lds.HexToKey(sNwkSIntHexKey)
+	if err != nil {
+		log.Printf("sNwkSIntKey error: %s", err)
+	}
+
+	fNwkSIntKey, err := lds.HexToKey(fNwkSIntHexKey)
+	if err != nil {
+		log.Printf("fNwkSIntKey error: %s", err)
+	}
+
+	appSKey, err := lds.HexToKey(appSHexKey)
+	if err != nil {
+		log.Printf("appskey error: %s", err)
+	}
+
+	devEUI, err := lds.HexToEUI(config.Device.EUI)
+	if err != nil {
+		return
+	}
+
+	nwkHexKey := config.Device.NwkKey
+	appHexKey := config.Device.AppKey
+
+	appKey, err := lds.HexToKey(appHexKey)
+	if err != nil {
+		return
+	}
+	nwkKey, err := lds.HexToKey(nwkHexKey)
+	if err != nil {
+		return
+	}
+	appEUI := [8]byte{0, 0, 0, 0, 0, 0, 0, 0}
+
+	device := &lds.Device{
+		DevEUI:      devEUI,
+		DevAddr:     devAddr,
+		NwkSEncKey:  nwkSEncKey,
+		SNwkSIntKey: sNwkSIntKey,
+		FNwkSIntKey: fNwkSIntKey,
+		AppSKey:     appSKey,
+		AppKey:      appKey,
+		NwkKey:      nwkKey,
+		AppEUI:      appEUI,
+		UlFcnt:      0,
+		DlFcnt:      0,
+		Major:       lorawan.Major(config.Device.Major.Selected()),
+		MACVersion:  lorawan.MACVersion(config.Device.MACVersion.Selected()),
+	}
+
+	device.SetMarshaler(marshalers[config.Device.Marshaler.Selected()])
+	log.Printf("using marshaler: %s\n", marshalers[config.Device.Marshaler.Selected()])
+
+	bw, err := strconv.Atoi(config.DR.Bandwith)
+	if err != nil {
+		return
+	}
+
+	sf, err := strconv.Atoi(config.DR.SpreadFactor)
+	if err != nil {
+		return
+	}
+
+	br, err := strconv.Atoi(config.DR.BitRate)
+	if err != nil {
+		return
+	}
+
+	dataRate := &lds.DataRate{
+		Bandwidth:    bw,
+		Modulation:   "LORA",
+		SpreadFactor: sf,
+		BitRate:      br,
+	}
+
+	for {
+		if stop {
+			stop = false
+			return
+		}
+		payload := []byte{}
+
+		if config.RawPayload.UseRaw.Checked() {
+			var pErr error
+			payload, pErr = hex.DecodeString(config.RawPayload.Payload)
+			if err != nil {
+				log.Errorf("couldn't decode hex payload: %s\n", pErr)
+				return
+			}
+		} else {
+			for _, v := range data {
+				if v.isFloat.Checked() {
+					val, err := strconv.ParseFloat(v.value, 32)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					maxVal, err := strconv.ParseFloat(v.maxVal, 32)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					numBytes, err := strconv.Atoi(v.numBytes)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					arr := lds.GenerateFloat(float32(val), float32(maxVal), int32(numBytes))
+					payload = append(payload, arr...)
+				} else {
+					val, err := strconv.Atoi(v.value)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+
+					numBytes, err := strconv.Atoi(v.numBytes)
+					if err != nil {
+						log.Errorf("wrong conversion: %s\n", err)
+						return
+					}
+					arr := lds.GenerateInt(int32(val), int32(numBytes))
+					payload = append(payload, arr...)
+				}
+			}
+		}
+
+		log.Printf("Bytes: %v\n", payload)
+
+		//Construct DataRate RxInfo with proper values according to your band (example is for US 915).
+
+		channel, err := strconv.Atoi(config.RXInfo.Channel)
+		if err != nil {
+			log.Errorf("wrong conversion: %s\n", err)
+			return
+		}
+
+		crc, err := strconv.Atoi(config.RXInfo.CrcStatus)
+		if err != nil {
+			log.Errorf("wrong conversion: %s\n", err)
+			return
+		}
+
+		frequency, err := strconv.Atoi(config.RXInfo.Frequency)
+		if err != nil {
+			log.Errorf("wrong conversion: %s\n", err)
+			return
+		}
+
+		rfChain, err := strconv.Atoi(config.RXInfo.RfChain)
+		if err != nil {
+			log.Errorf("wrong conversion: %s\n", err)
+			return
+		}
+
+		rssi, err := strconv.Atoi(config.RXInfo.Rssi)
+		if err != nil {
+			log.Errorf("wrong conversion: %s\n", err)
+			return
+		}
+
+		snr, err := strconv.ParseFloat(config.RXInfo.LoRaSNR, 64)
+		if err != nil {
+			log.Errorf("wrong conversion: %s\n", err)
+			return
+		}
+
+		rxInfo := &lds.RxInfo{
+			Channel:   channel,
+			CodeRate:  config.RXInfo.CodeRate,
+			CrcStatus: crc,
+			DataRate:  dataRate,
+			Frequency: frequency,
+			LoRaSNR:   float32(snr),
+			Mac:       config.GW.MAC,
+			RfChain:   rfChain,
+			Rssi:      rssi,
+			Size:      len(payload),
+			Time:      time.Now().Format(time.RFC3339),
+			Timestamp: int32(time.Now().UnixNano() / 1000000000),
+		}
+
+		//////
+
+		gwID, err := lds.MACToGatewayID(config.GW.MAC)
+		if err != nil {
+			log.Errorf("gw mac error: %s\n", err)
+			return
+		}
+		now := time.Now()
+		rxTime := ptypes.TimestampNow()
+		tsge := ptypes.DurationProto(now.Sub(time.Time{}))
+
+		urx := gw.UplinkRXInfo{
+			GatewayId:         gwID,
+			Rssi:              int32(rxInfo.Rssi),
+			LoraSnr:           float64(rxInfo.LoRaSNR),
+			Channel:           uint32(rxInfo.Channel),
+			RfChain:           uint32(rxInfo.RfChain),
+			TimeSinceGpsEpoch: tsge,
+			Time:              rxTime,
+			Timestamp:         uint32(rxTime.GetSeconds()),
+			Board:             0,
+			Antenna:           0,
+			Location:          nil,
+			FineTimestamp:     nil,
+			FineTimestampType: gw.FineTimestampType_NONE,
+		}
+
+		lmi := &gw.LoRaModulationInfo{
+			Bandwidth:       uint32(rxInfo.DataRate.Bandwidth),
+			SpreadingFactor: uint32(rxInfo.DataRate.SpreadFactor),
+			CodeRate:        rxInfo.CodeRate,
+		}
+
+		umi := &gw.UplinkTXInfo_LoraModulationInfo{
+			LoraModulationInfo: lmi,
+		}
+
+		utx := gw.UplinkTXInfo{
+			Frequency:      uint32(rxInfo.Frequency),
+			ModulationInfo: umi,
+		}
+
+		//////
+		mType := lorawan.UnconfirmedDataUp
+		if config.Device.MType.Selected() > 0 {
+			mType = lorawan.ConfirmedDataUp
+		}
+
+		//Now send an uplink
+		err = device.Uplink(client, mType, 1, &urx, &utx, payload, config.GW.MAC, bands[config.Band.Name.Selected()], *dataRate)
+		if err != nil {
+			log.Printf("couldn't send uplink: %s\n", err)
+		}
+
+		if uiSendOnce.Selected() == 0 {
+			stop = false
+			//Let mqtt client publish first, then stop it.
+			//time.Sleep(2 * time.Second)
+			ui.QueueMain(stopBtn.Disable)
+			ui.QueueMain(runBtn.Enable)
+			return
+		}
+
+		time.Sleep(time.Duration(uiInterval.Value()) * time.Second)
+
+	}
+
 }
+*/
 
 func maxLength(input string, limit int) func(data imgui.InputTextCallbackData) int32 {
 	return func(data imgui.InputTextCallbackData) int32 {
