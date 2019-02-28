@@ -2,146 +2,117 @@ package main
 
 import (
 	"encoding/hex"
-	"os"
-	"strconv"
-
-	"github.com/golang/protobuf/ptypes"
-	"github.com/iegomez/lds/lds"
-
 	"flag"
 	"fmt"
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/andlabs/ui"
-	_ "github.com/andlabs/ui/winmanifest"
-
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
-	lwband "github.com/brocaar/lorawan/band"
+	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/glfw/v3.2/glfw"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/iegomez/lds/lds"
+	"github.com/inkyblackness/imgui-go"
 
-	MQTT "github.com/eclipse/paho.mqtt.golang"
+	lwband "github.com/brocaar/lorawan/band"
+	paho "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/sirupsen/logrus"
 )
 
-var mainwin *ui.Window
-
 type mqtt struct {
-	Server     string `toml:"server"`
-	User       string `toml:"user"`
-	Password   string `toml:"password"`
-	uiServer   *ui.Entry
-	uiUser     *ui.Entry
-	uiPassword *ui.Entry
+	Server   string `toml:"server"`
+	User     string `toml:"user"`
+	Password string `toml:"password"`
 }
 
 type gateway struct {
-	MAC   string `toml:"mac"`
-	uiMAC *ui.Entry
+	MAC string `toml:"mac"`
 }
 
 type band struct {
-	Name   lwband.Name `toml:"name"`
-	uiName *ui.Combobox
+	Name lwband.Name `toml:"name"`
 }
 
 type device struct {
-	EUI           string             `toml:"eui"`
-	Address       string             `toml:"address"`
-	NwkSEncKey    string             `toml:"network_session_encription_key"`
-	SNwkSIntKey   string             `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
-	FNwkSIntKey   string             `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
-	AppSKey       string             `toml:"application_session_key"`
-	Marshaler     string             `toml:"marshaler"`
-	NwkKey        string             `toml:"nwk_key"`     //Network key, used to be called application key for Lorawan 1.0
-	AppKey        string             `toml:"app_key"`     //Application key, for Lorawan 1.1
-	Major         lorawan.Major      `toml:"major"`       //Lorawan major version
-	MACVersion    lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
-	Type          lorawan.MType      `toml:"mtype"`       //LoRaWAN mtype (ConfirmedDataUp or UnconfirmedDataUp)
-	uiEUI         *ui.Entry
-	uiAddress     *ui.Entry
-	uiNwkSEncKey  *ui.Entry
-	uiSNwkSIntKey *ui.Entry
-	uiFNwkSIntKey *ui.Entry
-	uiAppSKey     *ui.Entry
-	uiMarshaler   *ui.Combobox
-	uiNwkKey      *ui.Entry
-	uiAppKey      *ui.Entry
-	uiMajor       *ui.Combobox
-	uiMACVersion  *ui.Combobox
-	uiMType       *ui.Combobox
+	EUI         string             `toml:"eui"`
+	Address     string             `toml:"address"`
+	NwkSEncKey  string             `toml:"network_session_encription_key"`
+	SNwkSIntKey string             `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
+	FNwkSIntKey string             `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
+	AppSKey     string             `toml:"application_session_key"`
+	Marshaler   string             `toml:"marshaler"`
+	NwkKey      string             `toml:"nwk_key"`     //Network key, used to be called application key for Lorawan 1.0
+	AppKey      string             `toml:"app_key"`     //Application key, for Lorawan 1.1
+	Major       lorawan.Major      `toml:"major"`       //Lorawan major version
+	MACVersion  lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
+	MType       lorawan.MType      `toml:"mtype"`       //LoRaWAN mtype (ConfirmedDataUp or UnconfirmedDataUp)
+	Profile     string             `toml:"profile"`
+	Joined      bool               `toml:"joined"`
 }
 
 type dataRate struct {
-	Bandwith       int `toml:"bandwith"`
-	SpreadFactor   int `toml:"spread_factor"`
-	BitRate        int `toml:"bit_rate"`
-	uiBandwith     *ui.Entry
-	uiSpreadFactor *ui.Entry
-	uiBitRate      *ui.Entry
+	Bandwith     int `toml:"bandwith"`
+	SpreadFactor int `toml:"spread_factor"`
+	BitRate      int `toml:"bit_rate"`
+	BitRateS     string
 }
 
 type rxInfo struct {
-	Channel     int     `toml:"channel"`
-	CodeRate    string  `toml:"code_rate"`
-	CrcStatus   int     `toml:"crc_status"`
-	Frequency   int     `toml:"frequency"`
-	LoRaSNR     float64 `toml:"lora_snr"`
-	RfChain     int     `toml:"rf_chain"`
-	Rssi        int     `toml:"rssi"`
-	uiChannel   *ui.Entry
-	uiCodeRate  *ui.Entry
-	uiCrcStatus *ui.Entry
-	uiFrequency *ui.Entry
-	uiLoRaSNR   *ui.Entry
-	uiRfChain   *ui.Entry
-	uiRssi      *ui.Entry
+	Channel   int     `toml:"channel"`
+	CodeRate  string  `toml:"code_rate"`
+	CrcStatus int     `toml:"crc_status"`
+	Frequency int     `toml:"frequency"`
+	LoRaSNR   float64 `toml:"lora_snr"`
+	RfChain   int     `toml:"rf_chain"`
+	Rssi      int     `toml:"rssi"`
+	//String representations for numeric values so that we can manage them with input texts.
+	ChannelS   string
+	CrcStatusS string
+	FrequencyS string
+	LoRASNRS   string
+	RfChainS   string
+	RssiS      string
 }
 
-type tomlConfig struct {
-	MQTT        mqtt        `toml:"mqtt"`
-	Band        band        `toml:"band"`
-	Device      device      `timl:"device"`
-	GW          gateway     `toml:"gateway"`
-	DR          dataRate    `toml:"data_rate"`
-	RXInfo      rxInfo      `toml:"rx_info"`
-	DefaultData defaultData `toml:"default_data"`
-	RawPayload  rawPayload  `toml:"raw_payload"`
-}
-
-//defaultData holds optional default encoded data.
-type defaultData struct {
-	Names []string        `toml:"names"`
-	Data  [][]interface{} `toml:"data"`
-	Types []string        `toml:"types"`
-}
-
-type SendableValue struct {
-	value    *ui.Entry
-	maxVal   *ui.Entry
-	numBytes *ui.Entry
-	isFloat  *ui.Checkbox
-	index    int
-	del      *ui.Button
-	name     string
+type encodedType struct {
+	Name     string  `toml:"name"`
+	Value    float64 `toml:"value"`
+	MaxValue float64 `toml:"max_value"`
+	MinValue float64 `toml:"min_value"`
+	IsFloat  bool    `toml:"is_float"`
+	NumBytes int     `toml:"num_bytes"`
+	//String representations.
+	ValueS    string
+	MinValueS string
+	MaxValueS string
+	NumBytesS string
 }
 
 //rawPayload holds optional raw bytes payload (hex encoded).
 type rawPayload struct {
-	Payload   string `toml:"payload"`
-	UseRaw    bool   `toml:"use_raw"`
-	uiPayload *ui.Entry
-	uiUseRaw  *ui.Checkbox
+	Payload string `toml:"payload"`
+	UseRaw  bool   `toml:"use_raw"`
+}
+
+type tomlConfig struct {
+	MQTT        mqtt           `toml:"mqtt"`
+	Band        band           `toml:"band"`
+	Device      device         `timl:"device"`
+	GW          gateway        `toml:"gateway"`
+	DR          dataRate       `toml:"data_rate"`
+	RXInfo      rxInfo         `toml:"rx_info"`
+	RawPayload  rawPayload     `toml:"raw_payload"`
+	EncodedType []*encodedType `toml:"encoded_type"`
+	LogLevel    string         `toml:"log_level"`
 }
 
 var confFile *string
 var config *tomlConfig
-var dataBox *ui.Box
-var dataFormBox *ui.Box
-var dataForm *ui.Form
-var data []*SendableValue
 var stop bool
-var marshalers = map[int]string{0: "json", 1: "protobuf", 2: "v2_json"}
+var marshalers = []string{"json", "protobuf", "v2_json"}
 var bands = []lwband.Name{
 	lwband.AS_923,
 	lwband.AU_915_928,
@@ -154,67 +125,50 @@ var bands = []lwband.Name{
 	lwband.US_902_928,
 	lwband.RU_864_870,
 }
+var majorVersions = map[lorawan.Major]string{0: "LoRaWANRev1"}
+var macVersions = map[lorawan.MACVersion]string{0: "LoRaWAN 1.0", 1: "LoRaWAN 1.1"}
+var mTypes = map[lorawan.MType]string{lorawan.UnconfirmedDataUp: "UnconfirmedDataUp", lorawan.ConfirmedDataUp: "ConfirmedDataUp"}
+
+var bandwidths = []int{50, 125, 250, 500}
+var spreadFactors = []int{7, 8, 9, 10, 11, 12}
+
 var sendOnce bool
-var interval int
-var uiSendOnce *ui.RadioButtons
-var uiInterval *ui.Slider
-var runBtn *ui.Button
-var stopBtn *ui.Button
+var interval int32
+
+type outputWriter struct {
+	Text string
+}
+
+func (o *outputWriter) Write(p []byte) (n int, err error) {
+	o.Text = fmt.Sprintf("%s%s", o.Text, string(p))
+	return len(p), nil
+}
+
+var ow = &outputWriter{Text: ""}
+var repeat bool
+var running bool
+
+var mqttClient paho.Client
+var cDevice *lds.Device
 
 func importConf() {
 
 	if config == nil {
-		cMqtt := mqtt{
-			uiServer:   ui.NewEntry(),
-			uiUser:     ui.NewEntry(),
-			uiPassword: ui.NewPasswordEntry(),
-		}
+		cMqtt := mqtt{}
 
-		cDev := device{
-			uiEUI:         ui.NewEntry(),
-			uiAddress:     ui.NewEntry(),
-			uiNwkSEncKey:  ui.NewEntry(),
-			uiSNwkSIntKey: ui.NewEntry(),
-			uiFNwkSIntKey: ui.NewEntry(),
-			uiAppSKey:     ui.NewEntry(),
-			uiMarshaler:   ui.NewCombobox(),
-			uiNwkKey:      ui.NewEntry(),
-			uiAppKey:      ui.NewEntry(),
-			uiMajor:       ui.NewCombobox(),
-			uiMACVersion:  ui.NewCombobox(),
-			uiMType:       ui.NewCombobox(),
-		}
+		cGw := gateway{}
 
-		cGw := gateway{
-			uiMAC: ui.NewEntry(),
-		}
+		cDev := device{}
 
-		cBand := band{
-			uiName: ui.NewCombobox(),
-		}
+		cBand := band{}
 
-		cDr := dataRate{
-			uiBandwith:     ui.NewEntry(),
-			uiBitRate:      ui.NewEntry(),
-			uiSpreadFactor: ui.NewEntry(),
-		}
+		cDr := dataRate{}
 
-		cRx := rxInfo{
-			uiChannel:   ui.NewEntry(),
-			uiCodeRate:  ui.NewEntry(),
-			uiCrcStatus: ui.NewEntry(),
-			uiFrequency: ui.NewEntry(),
-			uiLoRaSNR:   ui.NewEntry(),
-			uiRfChain:   ui.NewEntry(),
-			uiRssi:      ui.NewEntry(),
-		}
+		cRx := rxInfo{}
 
-		dd := defaultData{}
+		cPl := rawPayload{}
 
-		cPl := rawPayload{
-			uiPayload: ui.NewEntry(),
-			uiUseRaw:  ui.NewCheckbox("Select to send raw bytes (hex encoded) instead of encoded data."),
-		}
+		et := []*encodedType{}
 
 		config = &tomlConfig{
 			MQTT:        cMqtt,
@@ -223,8 +177,8 @@ func importConf() {
 			GW:          cGw,
 			DR:          cDr,
 			RXInfo:      cRx,
-			DefaultData: dd,
 			RawPayload:  cPl,
+			EncodedType: et,
 		}
 	}
 
@@ -233,500 +187,188 @@ func importConf() {
 		return
 	}
 
-	config.MQTT.uiServer.SetText(config.MQTT.Server)
-	config.MQTT.uiUser.SetText(config.MQTT.User)
-	config.MQTT.uiPassword.SetText(config.MQTT.Password)
-
-	config.GW.uiMAC.SetText(config.GW.MAC)
-
-	for i := 0; i < len(bands); i++ {
-		config.Band.uiName.Append(string(bands[i]))
-		if config.Band.Name == bands[i] {
-			config.Band.uiName.SetSelected(i)
-		}
-	}
-
-	config.Device.uiEUI.SetText(config.Device.EUI)
-	config.Device.uiAddress.SetText(config.Device.Address)
-	config.Device.uiNwkSEncKey.SetText(config.Device.NwkSEncKey)
-	config.Device.uiSNwkSIntKey.SetText(config.Device.SNwkSIntKey)
-	config.Device.uiFNwkSIntKey.SetText(config.Device.FNwkSIntKey)
-	config.Device.uiAppSKey.SetText(config.Device.AppSKey)
-	config.Device.uiMarshaler.Append(marshalers[0])
-	config.Device.uiMarshaler.Append(marshalers[1])
-	config.Device.uiMarshaler.Append(marshalers[2])
-	if config.Device.Marshaler == marshalers[0] {
-		config.Device.uiMarshaler.SetSelected(0)
-	} else if config.Device.Marshaler == marshalers[1] {
-		config.Device.uiMarshaler.SetSelected(1)
+	l, err := log.ParseLevel(config.LogLevel)
+	if err != nil {
+		log.SetLevel(log.InfoLevel)
 	} else {
-		config.Device.uiMarshaler.SetSelected(2)
-	}
-	config.Device.uiNwkKey.SetText(config.Device.NwkKey)
-	config.Device.uiAppKey.SetText(config.Device.AppKey)
-
-	config.Device.uiMajor.Append("LoRaWANRev1")
-	config.Device.uiMajor.SetSelected(0)
-	config.Device.Major = lorawan.LoRaWANR1
-
-	config.Device.uiMACVersion.Append("LoRaWAN 1.0")
-	config.Device.uiMACVersion.Append("LoRaWAN 1.1")
-
-	config.Device.uiMACVersion.OnSelected(func(*ui.Combobox) {
-		if config.Device.uiMACVersion.Selected() == 0 {
-			config.Device.uiSNwkSIntKey.Hide()
-			config.Device.uiFNwkSIntKey.Hide()
-			config.Device.uiAppKey.Hide()
-		} else {
-			config.Device.uiSNwkSIntKey.Show()
-			config.Device.uiFNwkSIntKey.Show()
-			config.Device.uiAppKey.Show()
-		}
-	})
-
-	if config.Device.MACVersion == 0 {
-		config.Device.uiMACVersion.SetSelected(0)
-	} else if config.Device.MACVersion == 1 {
-		config.Device.uiMACVersion.SetSelected(1)
+		log.SetLevel(l)
 	}
 
-	config.Device.uiMType.Append("UnconfirmedDataUp")
-	config.Device.uiMType.Append("ConfirmedDataUp")
-	config.Device.uiMType.SetSelected(0)
-
-	config.DR.uiBandwith.SetText(fmt.Sprintf("%d", config.DR.Bandwith))
-	config.DR.uiBitRate.SetText(fmt.Sprintf("%d", config.DR.BitRate))
-	config.DR.uiSpreadFactor.SetText(fmt.Sprintf("%d", config.DR.SpreadFactor))
-
-	config.RXInfo.uiChannel.SetText(fmt.Sprintf("%d", config.RXInfo.Channel))
-	config.RXInfo.uiCodeRate.SetText(config.RXInfo.CodeRate)
-	config.RXInfo.uiCrcStatus.SetText(fmt.Sprintf("%d", config.RXInfo.CrcStatus))
-	config.RXInfo.uiFrequency.SetText(fmt.Sprintf("%d", config.RXInfo.Frequency))
-	config.RXInfo.uiLoRaSNR.SetText(fmt.Sprintf("%f", config.RXInfo.LoRaSNR))
-	config.RXInfo.uiRfChain.SetText(fmt.Sprintf("%d", config.RXInfo.RfChain))
-	config.RXInfo.uiRssi.SetText(fmt.Sprintf("%d", config.RXInfo.Rssi))
-
-	config.RawPayload.uiPayload.SetText(config.RawPayload.Payload)
-	config.RawPayload.uiUseRaw.SetChecked(config.RawPayload.UseRaw)
-
-}
-
-func exportConf(filename string) {
-	f, err := os.Create(fmt.Sprintf("%s.toml", filename))
-	if err != nil {
-		log.Errorf("export error: %s", err)
-		return
-	}
-	encoder := toml.NewEncoder(f)
-	err = encoder.Encode(config)
-	if err != nil {
-		log.Errorf("export error: %s", err)
-		return
-	}
-	log.Infof("exported conf file %s", f.Name())
-}
-
-func makeMQTTForm() ui.Control {
-	vbox := ui.NewVerticalBox()
-	vbox.SetPadded(true)
-
-	hbox := ui.NewHorizontalBox()
-	hbox.SetPadded(true)
-	vbox.Append(hbox, false)
-
-	entryForm := ui.NewForm()
-	entryForm.SetPadded(true)
-
-	importBtn := ui.NewButton("Import conf")
-	entry := ui.NewEntry()
-	entry.SetReadOnly(true)
-	importBtn.OnClicked(func(*ui.Button) {
-		filename := ui.OpenFile(mainwin)
-		if filename != "" {
-			confFile = &filename
-			importConf()
-		}
-	})
-
-	exportFile := ui.NewEntry()
-	exportBtn := ui.NewButton("Export conf")
-
-	exportBtn.OnClicked(func(*ui.Button) {
-		outName := exportFile.Text()
-		if outName == "" {
-			outName = fmt.Sprintf("export_conf_%d", time.Now().UnixNano())
-		}
-		exportConf(outName)
-	})
-
-	hbox.Append(importBtn, false)
-	hbox.Append(exportFile, false)
-	hbox.Append(exportBtn, false)
-
-	vbox.Append(ui.NewHorizontalSeparator(), false)
-
-	group := ui.NewGroup("MQTT and Gateway configuration")
-	group.SetMargined(true)
-	vbox.Append(group, true)
-
-	group.SetChild(ui.NewNonWrappingMultilineEntry())
-	group.SetChild(entryForm)
-
-	entryForm.Append("Server:", config.MQTT.uiServer, false)
-	entryForm.Append("User:", config.MQTT.uiUser, false)
-	entryForm.Append("Password:", config.MQTT.uiPassword, false)
-
-	entryForm.Append("Gateway MAC", config.GW.uiMAC, false)
-	return vbox
-}
-
-func makeDeviceForm() ui.Control {
-	vbox := ui.NewVerticalBox()
-	vbox.SetPadded(true)
-
-	hbox := ui.NewHorizontalBox()
-	hbox.SetPadded(true)
-	vbox.Append(hbox, false)
-
-	entryForm := ui.NewForm()
-	entryForm.SetPadded(true)
-
-	vbox.Append(ui.NewHorizontalSeparator(), false)
-
-	group := ui.NewGroup("Device configuration")
-	group.SetMargined(true)
-	vbox.Append(group, true)
-
-	group.SetChild(ui.NewNonWrappingMultilineEntry())
-	group.SetChild(entryForm)
-
-	entryForm.Append("DevEUI:", config.Device.uiEUI, false)
-	entryForm.Append("Device address:", config.Device.uiAddress, false)
-	entryForm.Append("Network session encryption key:", config.Device.uiNwkSEncKey, false)
-	entryForm.Append("Serving network session integration key:", config.Device.uiSNwkSIntKey, false)
-	entryForm.Append("Forwarding network session integration key:", config.Device.uiFNwkSIntKey, false)
-	entryForm.Append("Application session key:", config.Device.uiAppSKey, false)
-	entryForm.Append("NwkKey: ", config.Device.uiNwkKey, false)
-	entryForm.Append("AppKey: ", config.Device.uiAppKey, false)
-	entryForm.Append("Marshaler", config.Device.uiMarshaler, false)
-	entryForm.Append("LoRaWAN major: ", config.Device.uiMajor, false)
-	entryForm.Append("MAC Version: ", config.Device.uiMACVersion, false)
-	entryForm.Append("MType: ", config.Device.uiMType, false)
-
-	return vbox
-}
-
-func makeLoRaForm() ui.Control {
-	vbox := ui.NewVerticalBox()
-	vbox.SetPadded(true)
-
-	hbox := ui.NewHorizontalBox()
-	hbox.SetPadded(true)
-	vbox.Append(hbox, false)
-
-	entryForm := ui.NewForm()
-	entryForm.SetPadded(true)
-
-	vbox.Append(ui.NewHorizontalSeparator(), false)
-
-	group := ui.NewGroup("Data Rate configuration")
-	group.SetMargined(true)
-	vbox.Append(group, true)
-
-	group.SetChild(ui.NewNonWrappingMultilineEntry())
-	group.SetChild(entryForm)
-
-	entryForm.Append("Band: ", config.Band.uiName, false)
-	entryForm.Append("Bandwidth: ", config.DR.uiBandwith, false)
-	entryForm.Append("Bit rate: ", config.DR.uiBitRate, false)
-	entryForm.Append("Spread factor: ", config.DR.uiSpreadFactor, false)
-
-	entryFormRX := ui.NewForm()
-	entryFormRX.SetPadded(true)
-
-	vbox.Append(ui.NewHorizontalSeparator(), false)
-
-	groupRX := ui.NewGroup("RX info configuration")
-	groupRX.SetMargined(true)
-	vbox.Append(groupRX, true)
-
-	groupRX.SetChild(ui.NewNonWrappingMultilineEntry())
-	groupRX.SetChild(entryFormRX)
-
-	entryFormRX.Append("Channel: ", config.RXInfo.uiChannel, false)
-	entryFormRX.Append("Code rate: ", config.RXInfo.uiCodeRate, false)
-	entryFormRX.Append("CRC status: ", config.RXInfo.uiCrcStatus, false)
-	entryFormRX.Append("Frequency: ", config.RXInfo.uiFrequency, false)
-	entryFormRX.Append("LoRa SNR: ", config.RXInfo.uiLoRaSNR, false)
-	entryFormRX.Append("RF chain: ", config.RXInfo.uiRfChain, false)
-	entryFormRX.Append("RSSI: ", config.RXInfo.uiRssi, false)
-
-	return vbox
-}
-
-func makeDataForm() ui.Control {
-
-	data = make([]*SendableValue, 0)
-
-	dataBox := ui.NewVerticalBox()
-	dataBox.SetPadded(true)
-
-	hbox := ui.NewHorizontalBox()
-	hbox.SetPadded(true)
-	dataBox.Append(hbox, false)
-
-	/*dataForm := ui.NewForm()
-	dataForm.SetPadded(true)*/
-
-	dataFormBox = ui.NewVerticalBox()
-	dataFormBox.SetPadded(true)
-
-	name := ui.NewEntry()
-
-	button := ui.NewButton("Add value")
-	entry := ui.NewEntry()
-	entry.SetReadOnly(true)
-	button.OnClicked(func(*ui.Button) {
-		v := &SendableValue{
-			value:    ui.NewEntry(),
-			maxVal:   ui.NewEntry(),
-			numBytes: ui.NewEntry(),
-			isFloat:  ui.NewCheckbox("Float"),
-			index:    len(data),
-			del:      ui.NewButton("Delete"),
-			name:     name.Text(),
-		}
-		addValue(v, dataFormBox)
-		name.SetText("")
-	})
-
-	if len(config.DefaultData.Names) == len(config.DefaultData.Data) {
-		for i, name := range config.DefaultData.Names {
-			valueData := config.DefaultData.Data[i]
-			v := &SendableValue{
-				value:    ui.NewEntry(),
-				maxVal:   ui.NewEntry(),
-				numBytes: ui.NewEntry(),
-				isFloat:  ui.NewCheckbox("Float"),
-				index:    i,
-				del:      ui.NewButton("Delete"),
-				name:     name,
-			}
-			if config.DefaultData.Types[i] == "float" {
-				v.value.SetText(fmt.Sprintf("%f", valueData[0].(float64)))
-				v.maxVal.SetText(fmt.Sprintf("%f", valueData[1].(float64)))
-				v.numBytes.SetText(fmt.Sprintf("%d", int(valueData[2].(float64))))
-				v.isFloat.SetChecked(true)
-			} else {
-				v.value.SetText(fmt.Sprintf("%d", valueData[0].(int64)))
-				v.maxVal.SetText(fmt.Sprintf("%d", valueData[1].(int64)))
-				v.numBytes.SetText(fmt.Sprintf("%d", valueData[2].(int64)))
-				v.isFloat.SetChecked(false)
-			}
-			addValue(v, dataFormBox)
-		}
+	for i := 0; i < len(config.EncodedType); i++ {
+		config.EncodedType[i].ValueS = strconv.FormatFloat(config.EncodedType[i].Value, 'f', -1, 64)
+		config.EncodedType[i].MaxValueS = strconv.FormatFloat(config.EncodedType[i].MaxValue, 'f', -1, 64)
+		config.EncodedType[i].MinValueS = strconv.FormatFloat(config.EncodedType[i].MinValue, 'f', -1, 64)
+		config.EncodedType[i].NumBytesS = strconv.Itoa(config.EncodedType[i].NumBytes)
 	}
 
-	runBtn = ui.NewButton("Run")
-	entry2 := ui.NewEntry()
-	entry2.SetReadOnly(true)
-
-	stopBtn = ui.NewButton("Stop")
-	entry3 := ui.NewEntry()
-	entry3.SetReadOnly(true)
-
-	runBtn.OnClicked(func(*ui.Button) {
-		stopBtn.Enable()
-		runBtn.Disable()
-		go handledRun()
-	})
-
-	stopBtn.OnClicked(func(*ui.Button) {
-		stopBtn.Disable()
-		runBtn.Enable()
-		stop = true
-	})
-
-	hbox.Append(name, false)
-	hbox.Append(button, false)
-	hbox.Append(runBtn, false)
-	hbox.Append(stopBtn, false)
-
-	dataBox.Append(ui.NewHorizontalSeparator(), false)
-
-	confBox := ui.NewHorizontalBox()
-	confBox.SetPadded(true)
-	dataBox.Append(confBox, false)
-
-	uiSendOnce = ui.NewRadioButtons()
-	uiSendOnce.Append("Send once")
-	uiSendOnce.Append("Send every X seconds")
-	uiSendOnce.SetSelected(0)
-	uiInterval = ui.NewSlider(1, 60)
-
-	confBox.Append(uiSendOnce, false)
-	confBox.Append(uiInterval, true)
-
-	dataBox.Append(ui.NewHorizontalSeparator(), false)
-
-	rawBox := ui.NewHorizontalBox()
-	rawBox.SetPadded(true)
-	dataBox.Append(rawBox, false)
-
-	rawBox.Append(config.RawPayload.uiPayload, false)
-	rawBox.Append(config.RawPayload.uiUseRaw, false)
-
-	dataBox.Append(ui.NewHorizontalSeparator(), false)
-
-	group := ui.NewGroup("Encoded data")
-	group.SetMargined(true)
-
-	dataBox.Append(group, true)
-
-	group.SetChild(ui.NewNonWrappingMultilineEntry())
-	group.SetChild(dataFormBox)
-
-	return dataBox
+	//Fill string representations of numeric values.
+	config.DR.BitRateS = strconv.Itoa(config.DR.BitRate)
+	config.RXInfo.ChannelS = strconv.Itoa(config.RXInfo.Channel)
+	config.RXInfo.CrcStatusS = strconv.Itoa(config.RXInfo.CrcStatus)
+	config.RXInfo.FrequencyS = strconv.Itoa(config.RXInfo.Frequency)
+	config.RXInfo.LoRASNRS = strconv.FormatFloat(config.RXInfo.LoRaSNR, 'f', -1, 64)
+	config.RXInfo.RfChainS = strconv.Itoa(config.RXInfo.RfChain)
+	config.RXInfo.RssiS = strconv.Itoa(config.RXInfo.Rssi)
 }
 
-func addValue(v *SendableValue, dataFormBox *ui.Box) {
-	data = append(data, v)
-
-	//dataFormWrapper := ui.NewVerticalBox()
-	dataForm := ui.NewHorizontalBox()
-	nameLbl := ui.NewLabel(v.name)
-
-	dataForm.Append(nameLbl, true)
-	//dataFormWrapper.Append(dataForm, false)
-
-	dataForm.SetPadded(true)
-	vLbl := ui.NewLabel("Value")
-	dataForm.Append(vLbl, false)
-	dataForm.Append(v.value, false)
-	mvLbl := ui.NewLabel("Max value")
-	dataForm.Append(mvLbl, false)
-	dataForm.Append(v.maxVal, false)
-	nbLbl := ui.NewLabel("# bytes")
-	dataForm.Append(nbLbl, false)
-	dataForm.Append(v.numBytes, false)
-	dataForm.Append(v.isFloat, false)
-	dataForm.Append(v.del, true)
-	dataFormBox.Append(dataForm, false)
-	v.del.OnClicked(func(*ui.Button) {
-		if len(data) == 1 {
-			data = make([]*SendableValue, 0)
-		} else {
-			copy(data[v.index:], data[v.index+1:])
-			data[len(data)-1] = &SendableValue{}
-			data = data[:len(data)-1]
-			for k := v.index; k < len(data); k++ {
-				data[k].index--
-			}
+func beginMQTTForm() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
+	imgui.Begin("MQTT & Gateway")
+	imgui.PushItemWidth(250.0)
+	imgui.InputText("Server", &config.MQTT.Server)
+	imgui.InputText("User", &config.MQTT.User)
+	imgui.InputTextV("Password", &config.MQTT.Password, imgui.InputTextFlagsPassword, nil)
+	imgui.InputText("MAC", &config.GW.MAC)
+	if imgui.Button("Connect") {
+		connectClient()
+	}
+	if mqttClient != nil && mqttClient.IsConnected() {
+		if imgui.Button("Disconnect") {
+			mqttClient.Disconnect(200)
+			log.Infoln("mqtt client disconnected")
 		}
-
-		dataFormBox.Delete(v.index)
-
-	})
+	}
+	imgui.End()
 }
 
-func setupUI() {
-
-	//Try to initialize default values.
-	importConf()
-
-	mainwin = ui.NewWindow("Loraserver device simulator", 600, 480, true)
-	mainwin.OnClosing(func(*ui.Window) bool {
-		ui.Quit()
-		return true
-	})
-	ui.OnShouldQuit(func() bool {
-		mainwin.Destroy()
-		return true
-	})
-
-	tab := ui.NewTab()
-	mainwin.SetChild(tab)
-	mainwin.SetMargined(true)
-
-	tab.Append("MQTT", makeMQTTForm())
-	tab.SetMargined(0, true)
-	tab.Append("Device", makeDeviceForm())
-	tab.SetMargined(1, true)
-	tab.Append("DR and RX info", makeLoRaForm())
-	tab.SetMargined(2, true)
-	tab.Append("Run", makeDataForm())
-	tab.SetMargined(3, true)
-
-	mainwin.Show()
-}
-
-func main() {
-
-	confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
-	flag.Parse()
-
-	ui.Main(setupUI)
-}
-
-func handledRun() {
-	ui.QueueMain(run)
-}
-
-func run() {
-
+func connectClient() error {
 	//Connect to the broker
-	opts := MQTT.NewClientOptions()
-	opts.AddBroker(config.MQTT.uiServer.Text())
-	opts.SetUsername(config.MQTT.uiUser.Text())
-	opts.SetPassword(config.MQTT.uiPassword.Text())
+	opts := paho.NewClientOptions()
+	opts.AddBroker(config.MQTT.Server)
+	opts.SetUsername(config.MQTT.User)
+	opts.SetPassword(config.MQTT.Password)
+	opts.SetAutoReconnect(true)
 
-	client := MQTT.NewClient(opts)
-
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		log.Println("Connection error")
-		log.Println(token.Error())
+	mqttClient = paho.NewClient(opts)
+	log.Infoln("connecting...")
+	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+		log.Errorf("connection error: %s", token.Error())
+		return token.Error()
 	}
+	log.Infoln("connection established")
+	mqttClient.Subscribe(fmt.Sprintf("gateway/%s/tx", config.GW.MAC), 1, func(c paho.Client, msg paho.Message) {
+		if cDevice != nil {
+			dlMessage, err := cDevice.ProcessDownlink(msg.Payload(), cDevice.MACVersion)
+			if err != nil {
+				log.Errorf("downlink error: %s", err)
+			} else {
+				log.Infof("received message: %s", dlMessage)
+			}
+		}
+	})
+	return nil
+}
 
-	log.Println("Connection established.")
+func beginDeviceForm() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 200})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 370})
+	imgui.Begin("Device")
+	imgui.PushItemWidth(250.0)
+	imgui.InputTextV("Device EUI", &config.Device.EUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.EUI, 16))
+	imgui.InputTextV("Device address", &config.Device.Address, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.Address, 8))
+	imgui.InputTextV("NwkSEncKey", &config.Device.NwkSEncKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkSEncKey, 32))
+	imgui.InputTextV("SNwkSIntkey", &config.Device.SNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.SNwkSIntKey, 32))
+	imgui.InputTextV("FNwkSIntKey", &config.Device.FNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.FNwkSIntKey, 32))
+	imgui.InputTextV("AppSKey", &config.Device.AppSKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppSKey, 32))
+	imgui.InputTextV("NwkKey", &config.Device.NwkKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkKey, 32))
+	imgui.InputTextV("AppKey", &config.Device.AppKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppKey, 32))
+	if imgui.BeginCombo("Marshaler", config.Device.Marshaler) {
+		for _, marshaler := range marshalers {
+			if imgui.SelectableV(marshaler, marshaler == config.Device.Marshaler, 0, imgui.Vec2{}) {
+				config.Device.Marshaler = marshaler
+			}
+		}
+		imgui.EndCombo()
+	}
+	if imgui.BeginCombo("LoRaWAN major", majorVersions[config.Device.Major]) {
+		if imgui.SelectableV("LoRaWANRev1", config.Device.Major == 0, 0, imgui.Vec2{}) {
+			config.Device.MACVersion = 0
+		}
+		imgui.EndCombo()
+	}
+	if imgui.BeginCombo("MAC Version", macVersions[config.Device.MACVersion]) {
 
+		if imgui.SelectableV("LoRaWAN 1.0", config.Device.MACVersion == 0, 0, imgui.Vec2{}) {
+			config.Device.MACVersion = 0
+		}
+		if imgui.SelectableV("LoRaWAN 1.1", config.Device.MACVersion == 1, 0, imgui.Vec2{}) {
+			config.Device.MACVersion = 1
+		}
+		imgui.EndCombo()
+	}
+	if imgui.BeginCombo("MType", mTypes[config.Device.MType]) {
+		if imgui.SelectableV("UnconfirmedDataUp", config.Device.MType == lorawan.UnconfirmedDataUp, 0, imgui.Vec2{}) {
+			config.Device.MType = lorawan.UnconfirmedDataUp
+		}
+		if imgui.SelectableV("ConfirmedDataUp", config.Device.MType == lorawan.ConfirmedDataUp, 0, imgui.Vec2{}) {
+			config.Device.MType = lorawan.ConfirmedDataUp
+		}
+		imgui.EndCombo()
+	}
+	if imgui.BeginCombo("Profile", config.Device.Profile) {
+		if imgui.SelectableV("OTAA", config.Device.Profile == "OTAA", 0, imgui.Vec2{}) {
+			config.Device.Profile = "OTAA"
+		}
+		if imgui.SelectableV("ABP", config.Device.Profile == "ABP", 0, imgui.Vec2{}) {
+			config.Device.Profile = "ABP"
+		}
+	}
+	if cDevice == nil {
+		if imgui.Button("Set device") {
+			setDevice()
+		}
+	} else {
+		if imgui.Button("Reset device") {
+			setDevice()
+		}
+	}
+	imgui.SameLine()
+	if imgui.Button("Join") {
+		join()
+	}
+	imgui.End()
+}
+
+func setDevice() {
 	//Build your node with known keys (ABP).
-	nwkSEncHexKey := config.Device.uiNwkSEncKey.Text()
-	sNwkSIntHexKey := config.Device.uiSNwkSIntKey.Text()
-	fNwkSIntHexKey := config.Device.uiFNwkSIntKey.Text()
-	appSHexKey := config.Device.uiAppSKey.Text()
-	devHexAddr := config.Device.uiAddress.Text()
+	nwkSEncHexKey := config.Device.NwkSEncKey
+	sNwkSIntHexKey := config.Device.SNwkSIntKey
+	fNwkSIntHexKey := config.Device.FNwkSIntKey
+	appSHexKey := config.Device.AppSKey
+	devHexAddr := config.Device.Address
 	devAddr, err := lds.HexToDevAddress(devHexAddr)
 	if err != nil {
-		log.Printf("dev addr error: %s", err)
+		log.Errorf("dev addr error: %s", err)
 	}
 
 	nwkSEncKey, err := lds.HexToKey(nwkSEncHexKey)
 	if err != nil {
-		log.Printf("nwkSEncKey error: %s", err)
+		log.Errorf("nwkSEncKey error: %s", err)
 	}
 
 	sNwkSIntKey, err := lds.HexToKey(sNwkSIntHexKey)
 	if err != nil {
-		log.Printf("sNwkSIntKey error: %s", err)
+		log.Errorf("sNwkSIntKey error: %s", err)
 	}
 
 	fNwkSIntKey, err := lds.HexToKey(fNwkSIntHexKey)
 	if err != nil {
-		log.Printf("fNwkSIntKey error: %s", err)
+		log.Errorf("fNwkSIntKey error: %s", err)
 	}
 
 	appSKey, err := lds.HexToKey(appSHexKey)
 	if err != nil {
-		log.Printf("appskey error: %s", err)
+		log.Errorf("appskey error: %s", err)
 	}
 
-	devEUI, err := lds.HexToEUI(config.Device.uiEUI.Text())
+	devEUI, err := lds.HexToEUI(config.Device.EUI)
 	if err != nil {
 		return
 	}
 
-	nwkHexKey := config.Device.uiNwkKey.Text()
-	appHexKey := config.Device.uiAppKey.Text()
+	nwkHexKey := config.Device.NwkKey
+	appHexKey := config.Device.AppKey
 
 	appKey, err := lds.HexToKey(appHexKey)
 	if err != nil {
@@ -738,7 +380,7 @@ func run() {
 	}
 	appEUI := [8]byte{0, 0, 0, 0, 0, 0, 0, 0}
 
-	device := &lds.Device{
+	cDevice = &lds.Device{
 		DevEUI:      devEUI,
 		DevAddr:     devAddr,
 		NwkSEncKey:  nwkSEncKey,
@@ -750,33 +392,281 @@ func run() {
 		AppEUI:      appEUI,
 		UlFcnt:      0,
 		DlFcnt:      0,
-		Major:       lorawan.Major(config.Device.uiMajor.Selected()),
-		MACVersion:  lorawan.MACVersion(config.Device.uiMACVersion.Selected()),
+		Major:       lorawan.Major(config.Device.Major),
+		MACVersion:  lorawan.MACVersion(config.Device.MACVersion),
+	}
+	cDevice.SetMarshaler(config.Device.Marshaler)
+	log.Infof("using marshaler: %s", config.Device.Marshaler)
+}
+
+func beginLoRaForm() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 580})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 350})
+	imgui.Begin("LoRa Configuration")
+	imgui.PushItemWidth(250.0)
+	if imgui.BeginCombo("Band", string(config.Band.Name)) {
+		for _, band := range bands {
+			if imgui.SelectableV(string(band), band == config.Band.Name, 0, imgui.Vec2{}) {
+				config.Band.Name = band
+			}
+		}
+		imgui.EndCombo()
 	}
 
-	device.SetMarshaler(marshalers[config.Device.uiMarshaler.Selected()])
-	log.Printf("using marshaler: %s\n", marshalers[config.Device.uiMarshaler.Selected()])
-
-	bw, err := strconv.Atoi(config.DR.uiBandwith.Text())
-	if err != nil {
-		return
+	if imgui.BeginCombo("Bandwidth", strconv.Itoa(config.DR.Bandwith)) {
+		for _, bandwidth := range bandwidths {
+			if imgui.SelectableV(strconv.Itoa(bandwidth), bandwidth == config.DR.Bandwith, 0, imgui.Vec2{}) {
+				config.DR.Bandwith = bandwidth
+			}
+		}
+		imgui.EndCombo()
 	}
 
-	sf, err := strconv.Atoi(config.DR.uiSpreadFactor.Text())
-	if err != nil {
-		return
+	if imgui.BeginCombo("SpreadFactor", strconv.Itoa(config.DR.SpreadFactor)) {
+		for _, sf := range spreadFactors {
+			if imgui.SelectableV(strconv.Itoa(sf), sf == config.DR.SpreadFactor, 0, imgui.Vec2{}) {
+				config.DR.SpreadFactor = sf
+			}
+		}
+		imgui.EndCombo()
 	}
 
-	br, err := strconv.Atoi(config.DR.uiBitRate.Text())
+	imgui.InputTextV("Bit rate", &config.DR.BitRateS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.DR.BitRateS, 6, &config.DR.BitRate))
+
+	imgui.InputTextV("Channel", &config.RXInfo.ChannelS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.ChannelS, 10, &config.RXInfo.Channel))
+
+	imgui.InputTextV("CrcStatus", &config.RXInfo.CrcStatusS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.CrcStatusS, 10, &config.RXInfo.CrcStatus))
+
+	imgui.InputTextV("Frequency", &config.RXInfo.FrequencyS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.FrequencyS, 14, &config.RXInfo.Frequency))
+
+	imgui.InputTextV("LoRaSNR", &config.RXInfo.LoRASNRS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.RXInfo.LoRASNRS, &config.RXInfo.LoRaSNR))
+
+	imgui.InputTextV("RfChain", &config.RXInfo.RfChainS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(config.RXInfo.RfChainS, 10, &config.RXInfo.RfChain))
+
+	imgui.InputTextV("Rssi", &config.RXInfo.RssiS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.RssiS, 10, &config.RXInfo.Rssi))
+
+	imgui.End()
+}
+
+func beginDataForm() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 520})
+	imgui.Begin("Data")
+	imgui.Text("Raw data")
+	imgui.PushItemWidth(150.0)
+	imgui.InputTextV("Raw bytes in hex", &config.RawPayload.Payload, imgui.InputTextFlagsCharsHexadecimal, nil)
+	imgui.SameLine()
+	imgui.Checkbox("Send raw", &config.RawPayload.UseRaw)
+	imgui.SliderInt("X", &interval, 1, 60)
+	imgui.SameLine()
+	imgui.Checkbox("Send every X seconds", &repeat)
+	if !running {
+		if imgui.Button("Send") {
+			run()
+		}
+	}
+	if repeat {
+		if imgui.Button("Stop") {
+			running = false
+		}
+	}
+
+	imgui.Text("Encoded data")
+	if imgui.Button("Add encoded type") {
+		et := &encodedType{
+			Name:      "New type",
+			ValueS:    "0",
+			MaxValueS: "0",
+			MinValueS: "0",
+			NumBytesS: "0",
+		}
+		config.EncodedType = append(config.EncodedType, et)
+		log.Println("added new type")
+	}
+
+	for i := 0; i < len(config.EncodedType); i++ {
+		delete := false
+		imgui.Separator()
+		imgui.InputText(fmt.Sprintf("Name     ##%d", i), &config.EncodedType[i].Name)
+		imgui.SameLine()
+		imgui.InputTextV(fmt.Sprintf("Bytes    ##%d", i), &config.EncodedType[i].NumBytesS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(config.EncodedType[i].NumBytesS, 10, &config.EncodedType[i].NumBytes))
+		imgui.SameLine()
+		imgui.Checkbox(fmt.Sprintf("Float##%d", i), &config.EncodedType[i].IsFloat)
+		imgui.SameLine()
+		if imgui.Button(fmt.Sprintf("Delete##%d", i)) {
+			delete = true
+		}
+		imgui.InputTextV(fmt.Sprintf("Value    ##%d", i), &config.EncodedType[i].ValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].ValueS, &config.EncodedType[i].Value))
+		imgui.SameLine()
+		imgui.InputTextV(fmt.Sprintf("Max value##%d", i), &config.EncodedType[i].MaxValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].MaxValueS, &config.EncodedType[i].MaxValue))
+		imgui.SameLine()
+		imgui.InputTextV(fmt.Sprintf("Min value##%d", i), &config.EncodedType[i].MinValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].MinValueS, &config.EncodedType[i].MinValue))
+		if delete {
+			if len(config.EncodedType) == 1 {
+				config.EncodedType = make([]*encodedType, 0)
+			} else {
+				copy(config.EncodedType[i:], config.EncodedType[i+1:])
+				config.EncodedType[len(config.EncodedType)-1] = &encodedType{}
+				config.EncodedType = config.EncodedType[:len(config.EncodedType)-1]
+			}
+		}
+	}
+	imgui.Separator()
+
+	imgui.End()
+}
+
+func beginOutput() {
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 540})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 350})
+	imgui.Begin("Output")
+	if imgui.Button("Clear") {
+		ow.Text = ""
+	}
+	//imgui.PushStyleColor(imgui.StyleColorID(1), imgui.Vec4{X: 0.2, Y: 0.2, Z: 0.2, W: 0.5})
+	imgui.PushTextWrapPos()
+	imgui.PushStyleColor(imgui.StyleColorText, imgui.Vec4{X: 0.4, Y: 0.4, Z: 0.4, W: 0.5})
+	imgui.Text(ow.Text)
+	imgui.PopStyleColor()
+	imgui.End()
+}
+
+func main() {
+	runtime.LockOSThread()
+
+	err := glfw.Init()
 	if err != nil {
-		return
+		panic(err)
+	}
+	defer glfw.Terminate()
+
+	log.SetOutput(ow)
+
+	glfw.WindowHint(glfw.ContextVersionMajor, 3)
+	glfw.WindowHint(glfw.ContextVersionMinor, 2)
+	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
+	glfw.WindowHint(glfw.OpenGLForwardCompatible, 1)
+
+	window, err := glfw.CreateWindow(1200, 900, "LoRaServer ABP device simulator", nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer window.Destroy()
+	window.MakeContextCurrent()
+	glfw.SwapInterval(1)
+	err = gl.Init()
+	if err != nil {
+		panic(err)
+	}
+
+	context := imgui.CreateContext(nil)
+	defer context.Destroy()
+
+	confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
+	flag.Parse()
+
+	importConf()
+
+	//imgui.CurrentStyle().ScaleAllSizes(2.0)
+	//imgui.CurrentIO().SetFontGlobalScale(2.0)
+
+	impl := imguiGlfw3Init(window)
+	defer impl.Shutdown()
+
+	var clearColor imgui.Vec4
+
+	for !window.ShouldClose() {
+		glfw.PollEvents()
+		impl.NewFrame()
+		beginMQTTForm()
+		beginDeviceForm()
+		beginLoRaForm()
+		beginDataForm()
+		beginOutput()
+		displayWidth, displayHeight := window.GetFramebufferSize()
+		gl.Viewport(0, 0, int32(displayWidth), int32(displayHeight))
+		gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W)
+		gl.Clear(gl.COLOR_BUFFER_BIT)
+
+		imgui.Render()
+		impl.Render(imgui.RenderedDrawData())
+
+		window.SwapBuffers()
+		<-time.After(time.Millisecond * 25)
+	}
+}
+
+func join() {
+	if mqttClient == nil {
+		err := connectClient()
+		if err != nil {
+			return
+		}
+	} else if !mqttClient.IsConnected() {
+		log.Errorln("mqtt client not connected")
+	}
+
+	if cDevice == nil {
+		setDevice()
 	}
 
 	dataRate := &lds.DataRate{
-		Bandwidth:    bw,
+		Bandwidth:    config.DR.Bandwith,
 		Modulation:   "LORA",
-		SpreadFactor: sf,
-		BitRate:      br,
+		SpreadFactor: config.DR.SpreadFactor,
+		BitRate:      config.DR.BitRate,
+	}
+
+	rxInfo := &lds.RxInfo{
+		Channel:   config.RXInfo.Channel,
+		CodeRate:  config.RXInfo.CodeRate,
+		CrcStatus: config.RXInfo.CrcStatus,
+		DataRate:  dataRate,
+		Frequency: config.RXInfo.Frequency,
+		LoRaSNR:   float32(config.RXInfo.LoRaSNR),
+		Mac:       config.GW.MAC,
+		RfChain:   config.RXInfo.RfChain,
+		Rssi:      config.RXInfo.Rssi,
+		Time:      time.Now().Format(time.RFC3339),
+		Timestamp: int32(time.Now().UnixNano() / 1000000000),
+	}
+
+	gwID, err := lds.MACToGatewayID(config.GW.MAC)
+	if err != nil {
+		log.Errorf("gw mac error: %s", err)
+		return
+	}
+
+	err = cDevice.Join(mqttClient, string(gwID), *rxInfo)
+
+	if err != nil {
+		log.Errorf("join error: %s", err)
+	} else {
+		log.Println("join sent")
+	}
+
+}
+
+func run() {
+
+	if mqttClient == nil {
+		err := connectClient()
+		if err != nil {
+			return
+		}
+	} else if !mqttClient.IsConnected() {
+		log.Errorln("mqtt client not connected")
+	}
+
+	if cDevice == nil {
+		setDevice()
+	}
+
+	dataRate := &lds.DataRate{
+		Bandwidth:    config.DR.Bandwith,
+		Modulation:   "LORA",
+		SpreadFactor: config.DR.SpreadFactor,
+		BitRate:      config.DR.BitRate,
 	}
 
 	for {
@@ -786,101 +676,37 @@ func run() {
 		}
 		payload := []byte{}
 
-		if config.RawPayload.uiUseRaw.Checked() {
+		if config.RawPayload.UseRaw {
 			var pErr error
-			payload, pErr = hex.DecodeString(config.RawPayload.uiPayload.Text())
-			if err != nil {
-				log.Errorf("couldn't decode hex payload: %s\n", pErr)
+			payload, pErr = hex.DecodeString(config.RawPayload.Payload)
+			if pErr != nil {
+				log.Errorf("couldn't decode hex payload: %s", pErr)
 				return
 			}
 		} else {
-			for _, v := range data {
-				if v.isFloat.Checked() {
-					val, err := strconv.ParseFloat(v.value.Text(), 32)
-					if err != nil {
-						log.Errorf("wrong conversion: %s\n", err)
-						return
-					}
-					maxVal, err := strconv.ParseFloat(v.maxVal.Text(), 32)
-					if err != nil {
-						log.Errorf("wrong conversion: %s\n", err)
-						return
-					}
-					numBytes, err := strconv.Atoi(v.numBytes.Text())
-					if err != nil {
-						log.Errorf("wrong conversion: %s\n", err)
-						return
-					}
-					arr := lds.GenerateFloat(float32(val), float32(maxVal), int32(numBytes))
+			for _, v := range config.EncodedType {
+				if v.IsFloat {
+					arr := lds.GenerateFloat(float32(v.Value), float32(v.MaxValue), int32(v.NumBytes))
 					payload = append(payload, arr...)
 				} else {
-					val, err := strconv.Atoi(v.value.Text())
-					if err != nil {
-						log.Errorf("wrong conversion: %s\n", err)
-						return
-					}
-
-					numBytes, err := strconv.Atoi(v.numBytes.Text())
-					if err != nil {
-						log.Errorf("wrong conversion: %s\n", err)
-						return
-					}
-					arr := lds.GenerateInt(int32(val), int32(numBytes))
+					arr := lds.GenerateInt(int32(v.Value), int32(v.NumBytes))
 					payload = append(payload, arr...)
 				}
 			}
 		}
 
-		log.Printf("Bytes: %v\n", payload)
-
 		//Construct DataRate RxInfo with proper values according to your band (example is for US 915).
 
-		channel, err := strconv.Atoi(config.RXInfo.uiChannel.Text())
-		if err != nil {
-			log.Errorf("wrong conversion: %s\n", err)
-			return
-		}
-
-		crc, err := strconv.Atoi(config.RXInfo.uiCrcStatus.Text())
-		if err != nil {
-			log.Errorf("wrong conversion: %s\n", err)
-			return
-		}
-
-		frequency, err := strconv.Atoi(config.RXInfo.uiFrequency.Text())
-		if err != nil {
-			log.Errorf("wrong conversion: %s\n", err)
-			return
-		}
-
-		rfChain, err := strconv.Atoi(config.RXInfo.uiRfChain.Text())
-		if err != nil {
-			log.Errorf("wrong conversion: %s\n", err)
-			return
-		}
-
-		rssi, err := strconv.Atoi(config.RXInfo.uiRssi.Text())
-		if err != nil {
-			log.Errorf("wrong conversion: %s\n", err)
-			return
-		}
-
-		snr, err := strconv.ParseFloat(config.RXInfo.uiLoRaSNR.Text(), 64)
-		if err != nil {
-			log.Errorf("wrong conversion: %s\n", err)
-			return
-		}
-
 		rxInfo := &lds.RxInfo{
-			Channel:   channel,
-			CodeRate:  config.RXInfo.uiCodeRate.Text(),
-			CrcStatus: crc,
+			Channel:   config.RXInfo.Channel,
+			CodeRate:  config.RXInfo.CodeRate,
+			CrcStatus: config.RXInfo.CrcStatus,
 			DataRate:  dataRate,
-			Frequency: frequency,
-			LoRaSNR:   float32(snr),
-			Mac:       config.GW.uiMAC.Text(),
-			RfChain:   rfChain,
-			Rssi:      rssi,
+			Frequency: config.RXInfo.Frequency,
+			LoRaSNR:   float32(config.RXInfo.LoRaSNR),
+			Mac:       config.GW.MAC,
+			RfChain:   config.RXInfo.RfChain,
+			Rssi:      config.RXInfo.Rssi,
 			Size:      len(payload),
 			Time:      time.Now().Format(time.RFC3339),
 			Timestamp: int32(time.Now().UnixNano() / 1000000000),
@@ -888,9 +714,9 @@ func run() {
 
 		//////
 
-		gwID, err := lds.MACToGatewayID(config.GW.uiMAC.Text())
+		gwID, err := lds.MACToGatewayID(config.GW.MAC)
 		if err != nil {
-			log.Errorf("gw mac error: %s\n", err)
+			log.Errorf("gw mac error: %s", err)
 			return
 		}
 		now := time.Now()
@@ -928,29 +754,72 @@ func run() {
 			ModulationInfo: umi,
 		}
 
-		//////
-		mType := lorawan.UnconfirmedDataUp
-		if config.Device.uiMType.Selected() > 0 {
-			mType = lorawan.ConfirmedDataUp
-		}
-
 		//Now send an uplink
-		err = device.Uplink(client, mType, 1, &urx, &utx, payload, config.GW.uiMAC.Text(), bands[config.Band.uiName.Selected()], *dataRate)
+		ulfc, err := cDevice.Uplink(mqttClient, config.Device.MType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate)
 		if err != nil {
-			log.Printf("couldn't send uplink: %s\n", err)
+			log.Errorf("couldn't send uplink: %s", err)
+		} else {
+			log.Infof("message sent, uplink framecounter is now %d", ulfc)
 		}
 
-		if uiSendOnce.Selected() == 0 {
+		if !repeat || !running {
 			stop = false
-			//Let mqtt client publish first, then stop it.
-			//time.Sleep(2 * time.Second)
-			ui.QueueMain(stopBtn.Disable)
-			ui.QueueMain(runBtn.Enable)
 			return
 		}
 
-		time.Sleep(time.Duration(uiInterval.Value()) * time.Second)
+		time.Sleep(time.Duration(interval) * time.Second)
 
 	}
 
+}
+
+func maxLength(input string, limit int) func(data imgui.InputTextCallbackData) int32 {
+	return func(data imgui.InputTextCallbackData) int32 {
+		if len(input) >= limit {
+			return 1
+		}
+		return 0
+	}
+}
+
+func handleInt(input string, limit int, uValue *int) func(data imgui.InputTextCallbackData) int32 {
+	return func(data imgui.InputTextCallbackData) int32 {
+		if data.EventFlag() == imgui.InputTextFlagsCallbackCharFilter {
+			if len(input) > limit || data.EventChar() == rune('.') {
+				return 1
+			}
+			return 0
+		}
+		v, err := strconv.Atoi(input)
+		if err == nil {
+			*uValue = v
+		} else {
+			*uValue = 0
+		}
+		return 0
+	}
+}
+
+func handleFloat32(input string, uValue *float32) func(data imgui.InputTextCallbackData) int32 {
+	return func(data imgui.InputTextCallbackData) int32 {
+		v, err := strconv.ParseFloat(input, 32)
+		if err == nil {
+			*uValue = float32(v)
+		} else {
+			*uValue = 0
+		}
+		return 0
+	}
+}
+
+func handleFloat64(input string, uValue *float64) func(data imgui.InputTextCallbackData) int32 {
+	return func(data imgui.InputTextCallbackData) int32 {
+		v, err := strconv.ParseFloat(input, 64)
+		if err == nil {
+			*uValue = v
+		} else {
+			*uValue = 0
+		}
+		return 0
+	}
 }

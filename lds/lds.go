@@ -5,9 +5,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
+	"math/rand"
+	"time"
+
+	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
 
@@ -68,10 +71,12 @@ type Device struct {
 	DlFcnt      uint32
 	marshal     func(msg proto.Message) ([]byte, error)
 	unmarshal   func(b []byte, msg proto.Message) error
+	Profile     string
+	Joined      bool
+	DevNonce    lorawan.DevNonce
 }
 
 func (d *Device) SetMarshaler(opt string) {
-	log.Printf("switching to marshaler: %s\n", opt)
 	switch opt {
 	case "json":
 		d.marshal = func(msg proto.Message) ([]byte, error) {
@@ -113,6 +118,12 @@ func (d *Device) SetMarshaler(opt string) {
 //Join sends a join request for a given device (OTAA) and rxInfo. DEPRECATED, will be reimplemented.
 func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 
+	rand.Seed(time.Now().UnixNano())
+	n := int(math.Pow(2, 16)) - 1
+	r := uint16(rand.Intn(n))
+
+	d.DevNonce = lorawan.DevNonce(r)
+
 	joinPhy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
 			MType: lorawan.JoinRequest,
@@ -121,7 +132,7 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 		MACPayload: &lorawan.JoinRequestPayload{
 			JoinEUI:  d.AppEUI,
 			DevEUI:   d.DevEUI,
-			DevNonce: lorawan.DevNonce(uint16(65535)),
+			DevNonce: lorawan.DevNonce(r),
 		},
 	}
 
@@ -146,7 +157,7 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 }
 
 //Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
-func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) error {
+func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) (uint32, error) {
 
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
@@ -170,21 +181,21 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 	}
 
 	if err := phy.EncryptFRMPayload(d.AppSKey); err != nil {
-		fmt.Printf("encrypt frm payload: %s", err)
-		return err
+		log.Debugf("encrypt frm payload: %s", err)
+		return d.UlFcnt, err
 	}
 
 	if d.MACVersion == lorawan.LoRaWAN1_0 {
 		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey); err != nil {
-			fmt.Printf("set uplink mic error: %s", err)
-			return err
+			log.Debugf("set uplink mic error: %s", err)
+			return d.UlFcnt, err
 		}
 		phy.ValidateUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey)
 	} else if d.MACVersion == lorawan.LoRaWAN1_1 {
 		//Get the band.
 		b, err := band.GetConfig(bandName, false, lorawan.DwellTime400ms)
 		if err != nil {
-			return err
+			return d.UlFcnt, err
 		}
 		//Get DR index from a dr.
 		dataRate := band.DataRate{
@@ -195,7 +206,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		}
 		txDR, err := b.GetDataRateIndex(true, dataRate)
 		if err != nil {
-			return err
+			return d.UlFcnt, err
 		}
 		//Get tx ch.
 		var txCh int
@@ -207,7 +218,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 
 			c, err := b.GetUplinkChannel(i)
 			if err != nil {
-				return err
+				return d.UlFcnt, err
 			}
 
 			// there could be multiple channels using the same frequency, but with different data-rates.
@@ -221,26 +232,24 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		//Encrypt fOPts.
 		if err := phy.EncryptFOpts(d.NwkSEncKey); err != nil {
 			log.Errorf("encrypt fopts error: %s", err)
-			return err
+			return d.UlFcnt, err
 		}
 
 		//Now set the MIC.
-		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, 0, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
+		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, d.UlFcnt, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
 			log.Errorf("set uplink mic error: %s", err)
-			return err
+			return d.UlFcnt, err
 		}
 
-		log.Printf("Got MIC: %s\n", phy.MIC)
-
 	} else {
-		return errors.New("unknown lorawan version")
+		return d.UlFcnt, errors.New("unknown lorawan version")
 	}
 
 	phyBytes, err := phy.MarshalBinary()
 	if err != nil {
 		if err != nil {
-			fmt.Printf("marshal binary error: %s", err)
-			return err
+			log.Debugf("marshal binary error: %s\n", err)
+			return d.UlFcnt, err
 		}
 	}
 
@@ -250,22 +259,135 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		TxInfo:     txInfo,
 	}
 
-	fmt.Printf("Message PHY payload: %v\n", string(message.PhyPayload))
+	log.Debugf("payload: %v\n", string(message.PhyPayload))
 
 	bytes, err := d.marshal(&message)
 	if err != nil {
-		return err
+		return d.UlFcnt, err
 	}
 
-	fmt.Printf("Marshaled message: %v\n", string(bytes))
+	log.Debugf("marshaled message: %v\n", string(bytes))
 
 	if token := client.Publish("gateway/"+gwMAC+"/rx", 0, false, bytes); token.Wait() && token.Error() != nil {
 		fmt.Println(token.Error())
-		return token.Error()
+		return d.UlFcnt, token.Error()
 	}
 
-	return nil
+	d.UlFcnt++
 
+	return d.UlFcnt, nil
+
+}
+
+//Downlink processes a downlink message from the loraserver.
+func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (string, error) {
+	log.Infof("original dlmessage: %s", string(dlMessage))
+	var df map[string]interface{}
+	err := json.Unmarshal(dlMessage, &df)
+	if err != nil {
+		return "", err
+	}
+	//log.Infof("unmarshaled downlink frame: %+v", df)
+	var phy lorawan.PHYPayload
+	payload := []byte(df["phyPayload"].(string))
+	//log.Infof("encrypted payload: %s", string(payload))
+	if err := phy.UnmarshalText(payload); err != nil {
+		log.Error("failed at unmarshal")
+		return "", err
+	}
+
+	//Now we need to check the profile and if we are joined.
+	if d.Profile == "ABP" {
+		return d.processDownlink(phy, payload, mv)
+	}
+
+	//If we are not joined, we need to process the join response.
+	if !d.Joined {
+		return d.processJoinResponse(phy, payload, mv)
+	}
+
+	log.Infof("unmarshaled: %s", payload)
+
+	//Try to decrypt a join response first.
+	return "", nil
+
+}
+
+func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
+	log.Infoln("processing join response")
+	err := phy.DecryptJoinAcceptPayload(d.AppKey)
+	if err != nil {
+		log.Errorf("can't decrypt join accept: %s", err)
+	}
+
+	log.Infof("unmarshaled: %s", payload)
+
+	ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.AppKey)
+	if err != nil {
+		log.Error("failed at join mic function")
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("join nvalid mic")
+	}
+
+	if err := phy.DecryptFOpts(d.AppKey); err != nil {
+		log.Error("failed at opts decryption")
+		return "", err
+	}
+
+	phyJSON, err := phy.MarshalJSON()
+	if err != nil {
+		log.Error("failed at json marshal")
+		return "", err
+	}
+
+	//var mp lorawan.MACPayload
+	//mp.UnmarshalBinary(false, )
+
+	//var jap lorawan.JoinAcceptPayload = phy.MACPayload
+	/*var f map[string]interface{}
+	b, err := phy.MACPayload.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	json.Unmarshal(b, &f)
+	json.Unmarshal([]byte(f["macPayload"].(string), &jap)
+	log.Infof("join accept payload: %+v", jap)*/
+	log.Infof("mac payload: %+v")
+
+	return string(phyJSON), nil
+}
+
+func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
+	ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
+	if err != nil {
+		log.Error("failed at mic function")
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("invalid mic")
+	}
+
+	if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
+		log.Error("failed at opts decryption")
+		return "", err
+	}
+
+	if err := phy.DecryptFRMPayload(d.AppSKey); err != nil {
+		log.Error("failed at frm payload decryption")
+		return "", err
+	}
+
+	phyJSON, err := phy.MarshalJSON()
+	if err != nil {
+		log.Error("failed at json marshal")
+		return "", err
+	}
+
+	d.DlFcnt++
+
+	return string(phyJSON), nil
 }
 
 /////////////////////////
@@ -327,7 +449,7 @@ func testMIC(appKey [16]byte, appEUI, devEUI [8]byte) error {
 	}
 
 	if err := joinPhy.SetUplinkJoinMIC(appKey); err != nil {
-		fmt.Printf("set uplink join mic error: %s", err)
+		log.Debugf("set uplink join mic error: %s", err)
 		return err
 	}
 
@@ -336,7 +458,7 @@ func testMIC(appKey [16]byte, appEUI, devEUI [8]byte) error {
 
 	joinStr, err := joinPhy.MarshalText()
 	if err != nil {
-		fmt.Printf("join marshal error: %s", err)
+		log.Debugf("join marshal error: %s", err)
 		return err
 	}
 	fmt.Println(joinStr)
