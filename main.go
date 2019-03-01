@@ -37,8 +37,8 @@ type band struct {
 }
 
 type device struct {
-	EUI         string             `toml:"eui"`
-	Address     string             `toml:"address"`
+	DevEUI      string             `toml:"eui"`
+	DevAddress  string             `toml:"address"`
 	NwkSEncKey  string             `toml:"network_session_encription_key"`
 	SNwkSIntKey string             `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
 	FNwkSIntKey string             `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
@@ -97,6 +97,12 @@ type rawPayload struct {
 	UseRaw  bool   `toml:"use_raw"`
 }
 
+type redisConf struct {
+	Addr     string `toml:"addr"`
+	Password string `toml:"password"`
+	DB       int    `toml:"db"`
+}
+
 type tomlConfig struct {
 	MQTT        mqtt           `toml:"mqtt"`
 	Band        band           `toml:"band"`
@@ -107,6 +113,7 @@ type tomlConfig struct {
 	RawPayload  rawPayload     `toml:"raw_payload"`
 	EncodedType []*encodedType `toml:"encoded_type"`
 	LogLevel    string         `toml:"log_level"`
+	RedisConf   redisConf      `toml:"redis"`
 }
 
 var confFile *string
@@ -194,6 +201,9 @@ func importConf() {
 		log.SetLevel(l)
 	}
 
+	//Try to set redis.
+	lds.StartRedis(config.RedisConf.Addr, config.RedisConf.Password, config.RedisConf.DB)
+
 	for i := 0; i < len(config.EncodedType); i++ {
 		config.EncodedType[i].ValueS = strconv.FormatFloat(config.EncodedType[i].Value, 'f', -1, 64)
 		config.EncodedType[i].MaxValueS = strconv.FormatFloat(config.EncodedType[i].MaxValue, 'f', -1, 64)
@@ -250,6 +260,13 @@ func connectClient() error {
 	mqttClient.Subscribe(fmt.Sprintf("gateway/%s/tx", config.GW.MAC), 1, func(c paho.Client, msg paho.Message) {
 		if cDevice != nil {
 			dlMessage, err := cDevice.ProcessDownlink(msg.Payload(), cDevice.MACVersion)
+			//Update keys when necessary.
+			config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
+			config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
+			config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
+			config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
+			config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+			config.Device.Joined = cDevice.Joined
 			if err != nil {
 				log.Errorf("downlink error: %s", err)
 			} else {
@@ -265,8 +282,8 @@ func beginDeviceForm() {
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 370})
 	imgui.Begin("Device")
 	imgui.PushItemWidth(250.0)
-	imgui.InputTextV("Device EUI", &config.Device.EUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.EUI, 16))
-	imgui.InputTextV("Device address", &config.Device.Address, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.Address, 8))
+	imgui.InputTextV("Device EUI", &config.Device.DevEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevEUI, 16))
+	imgui.InputTextV("Device address", &config.Device.DevAddress, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevAddress, 8))
 	imgui.InputTextV("NwkSEncKey", &config.Device.NwkSEncKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkSEncKey, 32))
 	imgui.InputTextV("SNwkSIntkey", &config.Device.SNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.SNwkSIntKey, 32))
 	imgui.InputTextV("FNwkSIntKey", &config.Device.FNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.FNwkSIntKey, 32))
@@ -313,6 +330,7 @@ func beginDeviceForm() {
 		if imgui.SelectableV("ABP", config.Device.Profile == "ABP", 0, imgui.Vec2{}) {
 			config.Device.Profile = "ABP"
 		}
+		imgui.EndCombo()
 	}
 	if cDevice == nil {
 		if imgui.Button("Set device") {
@@ -336,7 +354,7 @@ func setDevice() {
 	sNwkSIntHexKey := config.Device.SNwkSIntKey
 	fNwkSIntHexKey := config.Device.FNwkSIntKey
 	appSHexKey := config.Device.AppSKey
-	devHexAddr := config.Device.Address
+	devHexAddr := config.Device.DevAddress
 	devAddr, err := lds.HexToDevAddress(devHexAddr)
 	if err != nil {
 		log.Errorf("dev addr error: %s", err)
@@ -362,7 +380,7 @@ func setDevice() {
 		log.Errorf("appskey error: %s", err)
 	}
 
-	devEUI, err := lds.HexToEUI(config.Device.EUI)
+	devEUI, err := lds.HexToEUI(config.Device.DevEUI)
 	if err != nil {
 		return
 	}

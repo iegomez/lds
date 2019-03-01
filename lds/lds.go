@@ -7,8 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"math/rand"
-	"time"
+	"strconv"
 
 	"github.com/pkg/errors"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/go-redis/redis"
 )
 
 //Message holds physical payload and rx info.
@@ -76,6 +76,25 @@ type Device struct {
 	DevNonce    lorawan.DevNonce
 }
 
+var redisClient *redis.Client
+
+//StartRedis tries to connect to Redis (used for DevNonce and JoinNonce).
+func StartRedis(addr, password string, db int) error {
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: password,
+		DB:       db,
+	})
+
+	_, err := redisClient.Ping().Result()
+	if err != nil {
+		log.Errorf("couldn't start Redis, only ABP profile will work. error: %s", err)
+		return err
+	}
+	return nil
+}
+
+//SetMarshaler sets marshaling and unmarshaling functions according to the given option.
 func (d *Device) SetMarshaler(opt string) {
 	switch opt {
 	case "json":
@@ -118,11 +137,18 @@ func (d *Device) SetMarshaler(opt string) {
 //Join sends a join request for a given device (OTAA) and rxInfo. DEPRECATED, will be reimplemented.
 func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 
-	rand.Seed(time.Now().UnixNano())
-	n := int(math.Pow(2, 16)) - 1
-	r := uint16(rand.Intn(n))
+	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
+	var devNonce uint16
+	sdn, err := redisClient.Get(devNonceKey).Result()
+	if err == nil {
+		dn, err := strconv.Atoi(sdn)
+		if err == nil {
+			devNonce = uint16(dn + 1)
+		}
+	}
+	redisClient.Set(devNonceKey, devNonce, 0)
 
-	d.DevNonce = lorawan.DevNonce(r)
+	d.DevNonce = lorawan.DevNonce(devNonce)
 
 	joinPhy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
@@ -132,11 +158,11 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 		MACPayload: &lorawan.JoinRequestPayload{
 			JoinEUI:  d.AppEUI,
 			DevEUI:   d.DevEUI,
-			DevNonce: lorawan.DevNonce(r),
+			DevNonce: d.DevNonce,
 		},
 	}
 
-	if err := joinPhy.SetUplinkJoinMIC(d.AppKey); err != nil {
+	if err := joinPhy.SetUplinkJoinMIC(d.NwkKey); err != nil {
 		return err
 	}
 
@@ -279,7 +305,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 
 }
 
-//Downlink processes a downlink message from the loraserver.
+//ProcessDownlink processes a downlink message from the loraserver.
 func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (string, error) {
 	log.Infof("original dlmessage: %s", string(dlMessage))
 	var df map[string]interface{}
@@ -297,41 +323,51 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (strin
 	}
 
 	//Now we need to check the profile and if we are joined.
-	if d.Profile == "ABP" {
+	if d.Profile == "ABP" || d.Joined {
 		return d.processDownlink(phy, payload, mv)
 	}
 
 	//If we are not joined, we need to process the join response.
-	if !d.Joined {
-		return d.processJoinResponse(phy, payload, mv)
-	}
-
-	log.Infof("unmarshaled: %s", payload)
-
-	//Try to decrypt a join response first.
-	return "", nil
+	return d.processJoinResponse(phy, payload, mv)
 
 }
 
 func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
 	log.Infoln("processing join response")
-	err := phy.DecryptJoinAcceptPayload(d.AppKey)
-	if err != nil {
-		log.Errorf("can't decrypt join accept: %s", err)
+
+	if d.MACVersion == 0 {
+		err := phy.DecryptJoinAcceptPayload(d.NwkKey)
+		if err != nil {
+			log.Errorf("can't decrypt join accept: %s", err)
+		}
+
+		log.Infof("unmarshaled: %s", payload)
+		ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
+		if err != nil {
+			log.Error("failed at join mic function")
+			return "", err
+		}
+		if !ok {
+			return "", errors.New("join invalid mic")
+		}
+	} else {
+		err := phy.DecryptJoinAcceptPayload(d.NwkKey)
+		if err != nil {
+			log.Errorf("can't decrypt join accept: %s", err)
+		}
+
+		/*log.Infof("unmarshaled: %s", payload)
+		ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
+		if err != nil {
+			log.Error("failed at join mic function")
+			return "", err
+		}
+		if !ok {
+			return "", errors.New("join invalid mic")
+		}*/
 	}
 
-	log.Infof("unmarshaled: %s", payload)
-
-	ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.AppKey)
-	if err != nil {
-		log.Error("failed at join mic function")
-		return "", err
-	}
-	if !ok {
-		return "", errors.New("join nvalid mic")
-	}
-
-	if err := phy.DecryptFOpts(d.AppKey); err != nil {
+	if err := phy.DecryptFOpts(d.NwkKey); err != nil {
 		log.Error("failed at opts decryption")
 		return "", err
 	}
@@ -342,19 +378,43 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 		return "", err
 	}
 
-	//var mp lorawan.MACPayload
-	//mp.UnmarshalBinary(false, )
+	jap := phy.MACPayload.(*lorawan.JoinAcceptPayload)
 
-	//var jap lorawan.JoinAcceptPayload = phy.MACPayload
-	/*var f map[string]interface{}
-	b, err := phy.MACPayload.MarshalBinary()
-	if err != nil {
-		return "", err
+	log.Infof("join accept payload: %+v", jap)
+
+	//Check that JoinNonce is greater than the one already stored.
+	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
+	var joinNonce lorawan.JoinNonce
+	sjn, err := redisClient.Get("join-nonce").Result()
+	if err == nil {
+		jn, err := strconv.Atoi(sjn)
+		if err == nil {
+			joinNonce = lorawan.JoinNonce(jn + 1)
+		}
 	}
-	json.Unmarshal(b, &f)
-	json.Unmarshal([]byte(f["macPayload"].(string), &jap)
-	log.Infof("join accept payload: %+v", jap)*/
-	log.Infof("mac payload: %+v")
+
+	if jap.JoinNonce <= joinNonce {
+		return "", errors.New("got lower or equal JoinNonce from server")
+	}
+
+	redisClient.Set(joinNonceKey, joinNonce, 0)
+
+	d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	if d.MACVersion == 0 {
+		d.NwkSEncKey = d.FNwkSIntKey
+		d.SNwkSIntKey = d.FNwkSIntKey
+	} else {
+		d.NwkSEncKey, err = getNwkSEncKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+		d.SNwkSIntKey, err = getSNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	}
+	if jap.DLSettings.OptNeg {
+		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.AppKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	} else {
+		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	}
+	d.DevAddr = jap.DevAddr
+
+	//log.Infof("device: %+v", d)
 
 	return string(phyJSON), nil
 }
@@ -420,10 +480,20 @@ func HexToKey(hexKey string) ([16]byte, error) {
 func HexToEUI(hexEUI string) (lorawan.EUI64, error) {
 	var eui lorawan.EUI64
 	if err := eui.UnmarshalText([]byte(hexEUI)); err != nil {
-		fmt.Errorf("wron eui: %s\n", err)
 		return eui, err
 	}
 	return eui, nil
+}
+
+//KeyToHex converts an AES128Key to its hex representation.
+func KeyToHex(key lorawan.AES128Key) string {
+	h := hex.EncodeToString(key[:])
+	return h
+}
+
+//DevAddressToHex converts a device address to its hex representation.
+func DevAddressToHex(devAddr [4]byte) string {
+	return hex.EncodeToString(devAddr[:])
 }
 
 //MACToGatewayID converts a string mac to a gateway id byte slice.
@@ -453,15 +523,11 @@ func testMIC(appKey [16]byte, appEUI, devEUI [8]byte) error {
 		return err
 	}
 
-	fmt.Println("Printing MIC")
-	fmt.Println(hex.EncodeToString(joinPhy.MIC[:]))
-
-	joinStr, err := joinPhy.MarshalText()
+	_, err := joinPhy.MarshalText()
 	if err != nil {
 		log.Debugf("join marshal error: %s", err)
 		return err
 	}
-	fmt.Println(joinStr)
 
 	return nil
 }
@@ -473,9 +539,6 @@ func publish(client MQTT.Client, topic string, v interface{}) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Publishing:")
-	fmt.Println(string(bytes))
 
 	if token := client.Publish(topic, 0, false, bytes); token.Wait() && token.Error() != nil {
 		fmt.Println(token.Error())
@@ -541,6 +604,7 @@ func generateLng(l float32) []byte {
 	return bRep
 }
 
+//GenerateFloat generates a byte array representation of a float.
 func GenerateFloat(originalFloat, maxValue float32, numBytes int32) []byte {
 	byteArray := make([]byte, numBytes)
 	if numBytes == 4 {
@@ -560,6 +624,7 @@ func GenerateFloat(originalFloat, maxValue float32, numBytes int32) []byte {
 	return byteArray
 }
 
+//GenerateInt generates a byte array representation of an int.
 func GenerateInt(originalInt, numBytes int32) []byte {
 
 	bRep := make([]byte, numBytes)
