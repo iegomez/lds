@@ -56,24 +56,25 @@ type DataRate struct {
 
 //Device holds device keys, addr, eui and fcnt.
 type Device struct {
-	DevEUI      lorawan.EUI64
-	DevAddr     lorawan.DevAddr
-	NwkSEncKey  lorawan.AES128Key
-	SNwkSIntKey lorawan.AES128Key
-	FNwkSIntKey lorawan.AES128Key
-	AppSKey     lorawan.AES128Key
-	NwkKey      [16]byte
-	AppKey      [16]byte
-	AppEUI      lorawan.EUI64
-	Major       lorawan.Major
-	MACVersion  lorawan.MACVersion
-	UlFcnt      uint32
-	DlFcnt      uint32
+	DevEUI      lorawan.EUI64      `json:"devEUI"`
+	DevAddr     lorawan.DevAddr    `json:"devAddr"`
+	NwkSEncKey  lorawan.AES128Key  `json:"nwkSEncKey"`
+	SNwkSIntKey lorawan.AES128Key  `json:"sNwkSIntKey"`
+	FNwkSIntKey lorawan.AES128Key  `json:"fNwksSIntKey"`
+	AppSKey     lorawan.AES128Key  `json:"appSKey"`
+	NwkKey      [16]byte           `json:"nwkKey"`
+	AppKey      [16]byte           `json:"appKey"`
+	AppEUI      lorawan.EUI64      `json:"appEUI"`
+	Major       lorawan.Major      `json:"major"`
+	MACVersion  lorawan.MACVersion `json:"macVersion"`
+	UlFcnt      uint32             `json:"ulFcnt"`
+	DlFcnt      uint32             `json:"dlFcnt"`
 	marshal     func(msg proto.Message) ([]byte, error)
 	unmarshal   func(b []byte, msg proto.Message) error
-	Profile     string
-	Joined      bool
-	DevNonce    lorawan.DevNonce
+	Profile     string            `json:"profile"`
+	Joined      bool              `json:"joined"`
+	DevNonce    lorawan.DevNonce  `json:"devNonce"`
+	JoinNonce   lorawan.JoinNonce `json:"joinNonce"`
 }
 
 var redisClient *redis.Client
@@ -134,9 +135,10 @@ func (d *Device) SetMarshaler(opt string) {
 	}
 }
 
-//Join sends a join request for a given device (OTAA) and rxInfo. DEPRECATED, will be reimplemented.
+//Join sends a join request for a given device (OTAA) and rxInfo.
 func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 
+	d.Joined = false
 	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
 	var devNonce uint16
 	sdn, err := redisClient.Get(devNonceKey).Result()
@@ -185,6 +187,16 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 //Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
 func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) (uint32, error) {
 
+	//Get uplink frame counter.
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	uf, err := redisClient.Get(ulFcntKey).Result()
+	if err == nil {
+		ufn, err := strconv.Atoi(uf)
+		if err == nil {
+			d.UlFcnt = uint32(ufn) + 1
+		}
+	}
+
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
 			MType: mType,
@@ -196,10 +208,23 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 				FCtrl: lorawan.FCtrl{
 					ADR:       false,
 					ADRACKReq: false,
-					ACK:       false,
+					ACK:       true,
 				},
-				FCnt:  d.UlFcnt,
-				FOpts: []lorawan.Payload{}, // you can leave this out when there is no MAC command to send
+				FCnt: d.UlFcnt,
+				FOpts: []lorawan.Payload{
+					&lorawan.MACCommand{
+						CID: lorawan.RXParamSetupAns,
+						Payload: &lorawan.RXParamSetupAnsPayload{
+							ChannelACK:     true,
+							RX1DROffsetACK: true,
+							RX2DataRateACK: true,
+						},
+					},
+					&lorawan.MACCommand{
+						CID:     lorawan.RXTimingSetupAns,
+						Payload: nil,
+					},
+				},
 			},
 			FPort:      &fPort,
 			FRMPayload: []lorawan.Payload{&lorawan.DataPayload{Bytes: payload}},
@@ -299,7 +324,8 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		return d.UlFcnt, token.Error()
 	}
 
-	d.UlFcnt++
+	//Message was sent, UlFcnt can be set.
+	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 
 	return d.UlFcnt, nil
 
@@ -313,7 +339,6 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (strin
 	if err != nil {
 		return "", err
 	}
-	//log.Infof("unmarshaled downlink frame: %+v", df)
 	var phy lorawan.PHYPayload
 	payload := []byte(df["phyPayload"].(string))
 	//log.Infof("encrypted payload: %s", string(payload))
@@ -335,36 +360,20 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (strin
 func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
 	log.Infoln("processing join response")
 
-	if d.MACVersion == 0 {
-		err := phy.DecryptJoinAcceptPayload(d.NwkKey)
-		if err != nil {
-			log.Errorf("can't decrypt join accept: %s", err)
-		}
+	err := phy.DecryptJoinAcceptPayload(d.NwkKey)
+	if err != nil {
+		log.Errorf("can't decrypt join accept: %s", err)
+	}
 
-		log.Infof("unmarshaled: %s", payload)
-		ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
-		if err != nil {
-			log.Error("failed at join mic function")
-			return "", err
-		}
-		if !ok {
-			return "", errors.New("join invalid mic")
-		}
-	} else {
-		err := phy.DecryptJoinAcceptPayload(d.NwkKey)
-		if err != nil {
-			log.Errorf("can't decrypt join accept: %s", err)
-		}
+	log.Infof("unmarshaled: %s", payload)
 
-		/*log.Infof("unmarshaled: %s", payload)
-		ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
-		if err != nil {
-			log.Error("failed at join mic function")
-			return "", err
-		}
-		if !ok {
-			return "", errors.New("join invalid mic")
-		}*/
+	ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
+	if err != nil {
+		log.Error("failed at join mic function")
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("join invalid mic")
 	}
 
 	if err := phy.DecryptFOpts(d.NwkKey); err != nil {
@@ -385,7 +394,7 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	//Check that JoinNonce is greater than the one already stored.
 	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
 	var joinNonce lorawan.JoinNonce
-	sjn, err := redisClient.Get("join-nonce").Result()
+	sjn, err := redisClient.Get(joinNonceKey).Result()
 	if err == nil {
 		jn, err := strconv.Atoi(sjn)
 		if err == nil {
@@ -413,41 +422,92 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 	}
 	d.DevAddr = jap.DevAddr
+	d.Joined = true
+	d.UlFcnt = 0
+	d.DlFcnt = 0
 
-	//log.Infof("device: %+v", d)
+	//Set frame counters to 0.
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+
+	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 
 	return string(phyJSON), nil
 }
 
 func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
+
+	//Get downlink frame counter and icnrease it by 1.
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	df, err := redisClient.Get(dlFcntKey).Result()
+	if err == nil {
+		dfn, err := strconv.Atoi(df)
+		if err == nil {
+			d.DlFcnt = uint32(dfn)
+		}
+	}
+
 	ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
 	if err != nil {
-		log.Error("failed at mic function")
+		log.Error("failed at downlink mic function")
 		return "", err
 	}
 	if !ok {
-		return "", errors.New("invalid mic")
+		return "", errors.New("downlin error: invalid mic")
 	}
 
 	if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
-		log.Error("failed at opts decryption")
+		log.Error("failed at downlink opts decryption")
 		return "", err
 	}
 
 	if err := phy.DecryptFRMPayload(d.AppSKey); err != nil {
-		log.Error("failed at frm payload decryption")
+		log.Error("failed at downlink frm payload decryption")
 		return "", err
 	}
+
+	/*if err := phy.DecodeFOptsToMACCommands(); err != nil {
+		log.Error("failed at downlink opts to mac commands decoding")
+		return "", err
+	}*/
 
 	phyJSON, err := phy.MarshalJSON()
 	if err != nil {
-		log.Error("failed at json marshal")
+		log.Error("failed at downlink json marshal")
 		return "", err
 	}
 
-	d.DlFcnt++
+	macPayload := phy.MACPayload.(*lorawan.MACPayload)
+	log.Infof("mac payload: %+v", macPayload)
 
+	for _, fOpt := range macPayload.FHDR.FOpts {
+		opt := fOpt.(*lorawan.MACCommand)
+		log.Infof("fOpt: %+v", opt.Payload)
+	}
+
+	log.Infof("fctrl: %+v", macPayload.FHDR.FCtrl)
+
+	for _, frmPayload := range macPayload.FRMPayload {
+		log.Infof("data payload: %+v", frmPayload.(*lorawan.DataPayload))
+	}
+
+	log.Infof("dlFcnt: %d / received Fcnt: %d", d.DlFcnt, macPayload.FHDR.FCnt)
+
+	//Set downlink frame counter.
+	d.DlFcnt++
+	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 	return string(phyJSON), nil
+}
+
+//Reset clears all data from redis for a given device.
+func (d *Device) Reset() error {
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	ulFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
+	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
+	_, err := redisClient.Del(dlFcntKey, ulFcntKey, joinNonceKey, devNonceKey).Result()
+	return err
 }
 
 /////////////////////////

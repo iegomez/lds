@@ -4,8 +4,11 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -157,6 +160,12 @@ var running bool
 
 var mqttClient paho.Client
 var cDevice *lds.Device
+var openFile bool
+var files []os.FileInfo
+var saveFile bool
+var saveFilename string
+var resetDevice bool
+var macCommand lorawan.CID
 
 func importConf() {
 
@@ -221,10 +230,31 @@ func importConf() {
 	config.RXInfo.RssiS = strconv.Itoa(config.RXInfo.Rssi)
 }
 
+func exportConf(filename string) {
+	if !strings.Contains(filename, ".toml") {
+		filename = fmt.Sprintf("%s.toml", filename)
+	}
+	f, err := os.Create(filename)
+	if err != nil {
+		log.Errorf("export error: %s", err)
+		return
+	}
+	encoder := toml.NewEncoder(f)
+	err = encoder.Encode(config)
+	if err != nil {
+		log.Errorf("export error: %s", err)
+		return
+	}
+	log.Infof("exported conf file %s", f.Name())
+	*confFile = f.Name()
+
+}
+
 func beginMQTTForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 170})
 	imgui.Begin("MQTT & Gateway")
+	imgui.Separator()
 	imgui.PushItemWidth(250.0)
 	imgui.InputText("Server", &config.MQTT.Server)
 	imgui.InputText("User", &config.MQTT.User)
@@ -239,6 +269,9 @@ func beginMQTTForm() {
 			log.Infoln("mqtt client disconnected")
 		}
 	}
+	//Add popus for file administration.
+	beginOpenFile()
+	beginSaveFile()
 	imgui.End()
 }
 
@@ -278,8 +311,8 @@ func connectClient() error {
 }
 
 func beginDeviceForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 200})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 370})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 360})
 	imgui.Begin("Device")
 	imgui.PushItemWidth(250.0)
 	imgui.InputTextV("Device EUI", &config.Device.DevEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevEUI, 16))
@@ -336,15 +369,18 @@ func beginDeviceForm() {
 		if imgui.Button("Set device") {
 			setDevice()
 		}
-	} else {
-		if imgui.Button("Reset device") {
-			setDevice()
-		}
+		imgui.SameLine()
 	}
-	imgui.SameLine()
 	if imgui.Button("Join") {
 		join()
 	}
+	imgui.SameLine()
+	if cDevice != nil {
+		if imgui.Button("Reset device") {
+			resetDevice = true
+		}
+	}
+	beginReset()
 	imgui.End()
 }
 
@@ -418,8 +454,8 @@ func setDevice() {
 }
 
 func beginLoRaForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 580})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 350})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 575})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 320})
 	imgui.Begin("LoRa Configuration")
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginCombo("Band", string(config.Band.Name)) {
@@ -467,8 +503,8 @@ func beginLoRaForm() {
 }
 
 func beginDataForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 10})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 520})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 540})
 	imgui.Begin("Data")
 	imgui.Text("Raw data")
 	imgui.PushItemWidth(150.0)
@@ -488,6 +524,11 @@ func beginDataForm() {
 			running = false
 		}
 	}
+
+	imgui.Separator()
+	imgui.Text("MAC Commands")
+	beginMACCommands()
+	imgui.Separator()
 
 	imgui.Text("Encoded data")
 	if imgui.Button("Add encoded type") {
@@ -535,18 +576,137 @@ func beginDataForm() {
 }
 
 func beginOutput() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 540})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 350})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 575})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 320})
 	imgui.Begin("Output")
 	if imgui.Button("Clear") {
 		ow.Text = ""
 	}
+	imgui.Separator()
 	//imgui.PushStyleColor(imgui.StyleColorID(1), imgui.Vec4{X: 0.2, Y: 0.2, Z: 0.2, W: 0.5})
 	imgui.PushTextWrapPos()
 	imgui.PushStyleColor(imgui.StyleColorText, imgui.Vec4{X: 0.4, Y: 0.4, Z: 0.4, W: 0.5})
 	imgui.Text(ow.Text)
 	imgui.PopStyleColor()
 	imgui.End()
+}
+
+func beginMenu() {
+	if imgui.BeginMainMenuBar() {
+		if imgui.BeginMenu("File") {
+
+			if imgui.MenuItem("Open") {
+				openFile = true
+				var err error
+				files, err = ioutil.ReadDir("./")
+				if err != nil {
+					log.Errorf("couldn't list files: %s", err)
+				}
+			}
+
+			if imgui.MenuItem("Save") {
+				saveFile = true
+			}
+
+			imgui.EndMenu()
+		}
+		imgui.EndMainMenuBar()
+	}
+}
+
+func beginOpenFile() {
+	if openFile {
+		imgui.OpenPopup("Select file")
+		openFile = false
+	}
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
+	imgui.PushItemWidth(250.0)
+	if imgui.BeginPopupModal("Select file") {
+		if imgui.BeginComboV("Select", *confFile, 0) {
+			for _, f := range files {
+				filename := f.Name()
+				if !strings.Contains(filename, ".toml") {
+					continue
+				}
+				if imgui.SelectableV(filename, *confFile == filename, 0, imgui.Vec2{}) {
+					*confFile = filename
+				}
+			}
+			imgui.EndCombo()
+		}
+		//imgui.Text("hola hola hola hola hola hola hola hola hola hola")
+		imgui.Separator()
+		if imgui.Button("Cancel") {
+			imgui.CloseCurrentPopup()
+		}
+		imgui.SameLine()
+		if imgui.Button("Import") {
+			//Import file.
+			importConf()
+			imgui.CloseCurrentPopup()
+			//Close popup.
+		}
+		imgui.EndPopup()
+	}
+}
+
+func beginSaveFile() {
+	if saveFile {
+		imgui.OpenPopup("Save file")
+		saveFile = false
+	}
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
+	imgui.PushItemWidth(250.0)
+	if imgui.BeginPopupModal("Save file") {
+
+		imgui.InputText("Name", &saveFilename)
+		imgui.Separator()
+		if imgui.Button("Cancel") {
+			imgui.CloseCurrentPopup()
+		}
+		imgui.SameLine()
+		if imgui.Button("Save") {
+			//Import file.
+			exportConf(saveFilename)
+			imgui.CloseCurrentPopup()
+			//Close popup.
+		}
+		imgui.EndPopup()
+	}
+}
+
+func beginReset() {
+	if resetDevice {
+		imgui.OpenPopup("Reset device")
+		resetDevice = false
+	}
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
+	imgui.PushItemWidth(250.0)
+	if imgui.BeginPopupModal("Reset device") {
+
+		imgui.PushTextWrapPos()
+		imgui.Text("This will delete saved devNonce, joinNonce, DlFcnt and UlFcnt. Are you sure you want to proceed?")
+		imgui.Separator()
+		if imgui.Button("Cancel") {
+			imgui.CloseCurrentPopup()
+		}
+		imgui.SameLine()
+		if imgui.Button("Confirm") {
+			//Reset device.
+			err := cDevice.Reset()
+			if err != nil {
+				log.Errorln(err)
+			} else {
+				log.Infoln("device was reset")
+			}
+			imgui.CloseCurrentPopup()
+			//Close popup.
+		}
+		imgui.EndPopup()
+	}
 }
 
 func main() {
@@ -601,6 +761,7 @@ func main() {
 		beginLoRaForm()
 		beginDataForm()
 		beginOutput()
+		beginMenu()
 		displayWidth, displayHeight := window.GetFramebufferSize()
 		gl.Viewport(0, 0, int32(displayWidth), int32(displayHeight))
 		gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W)
