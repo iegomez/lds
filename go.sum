@@ -1,6 +1,8 @@
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/andlabs/ui v0.0.0-20180902183112-867a9e5a498d/go.mod h1:5G2EjwzgZUPnnReoKvPWVneT8APYbyKkihDVAHUi0II=
+github.com/atotto/clipboard v0.1.2 h1:YZCtFu5Ie8qX2VmVTBnrqLSiU9XOWwqNRmdT3gIQzbY=
+github.com/atotto/clipboard v0.1.2/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/brocaar/loraserver v2.3.0+incompatible h1:zuMK4Ik0Deau6yKMTCHQ3S7EndnIznbno90sWXjVYbE=
 github.com/brocaar/loraserver v2.3.0+incompatible/go.mod h1:VBTim0YtfWAKehjJ6k17jCnG44DzXVdL4iu+hwxg2ik=
 github.com/brocaar/lorawan v0.0.0-20181103141609-18588db1582c h1:EX4nUiSp1HZjZKZR1IIYvH06Pj5JQwlZGN/HkYcd0xo=

@@ -41,6 +41,17 @@ var mcPayloads = []lorawan.MACCommandPayload{
 	&lorawan.RejoinParamSetupAnsPayload{},
 }
 
+var mcs = []lorawan.MACCommand{
+	lorawan.MACCommand{
+		CID:     lorawan.ResetInd,
+		Payload: &lorawan.ResetIndPayload{},
+	},
+	lorawan.MACCommand{
+		CID:     lorawan.LinkCheckReq,
+		Payload: nil,
+	},
+}
+
 func beginMACCommands() {
 	if imgui.BeginCombo("MACCommand", macCommand.String()) {
 
@@ -55,7 +66,7 @@ func beginMACCommands() {
 	if macCommand != lorawan.CID(0) {
 		switch macCommand {
 		case lorawan.ResetInd:
-			lorawan.ResetIndPayload{}
+			//lorawan.ResetIndPayload{}
 		}
 	}
 }

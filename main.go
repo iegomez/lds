@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/atotto/clipboard"
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -49,6 +50,7 @@ type device struct {
 	Marshaler   string             `toml:"marshaler"`
 	NwkKey      string             `toml:"nwk_key"`     //Network key, used to be called application key for Lorawan 1.0
 	AppKey      string             `toml:"app_key"`     //Application key, for Lorawan 1.1
+	JoinEUI     string             `toml:"join_eui"`    //JoinEUI for 1.1. (AppEUI on 1.0)
 	Major       lorawan.Major      `toml:"major"`       //Lorawan major version
 	MACVersion  lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
 	MType       lorawan.MType      `toml:"mtype"`       //LoRaWAN mtype (ConfirmedDataUp or UnconfirmedDataUp)
@@ -146,15 +148,19 @@ var sendOnce bool
 var interval int32
 
 type outputWriter struct {
-	Text string
+	Text    string
+	Counter int
+	History string
 }
 
 func (o *outputWriter) Write(p []byte) (n int, err error) {
-	o.Text = fmt.Sprintf("%s%s", o.Text, string(p))
+	o.Counter++
+	o.Text = fmt.Sprintf("%s%05d  %s", o.Text, o.Counter, string(p))
+	o.History += o.Text
 	return len(p), nil
 }
 
-var ow = &outputWriter{Text: ""}
+var ow = &outputWriter{Text: "", Counter: 0}
 var repeat bool
 var running bool
 
@@ -250,6 +256,18 @@ func exportConf(filename string) {
 
 }
 
+func dumpConsole() {
+	/*f, err := os.Create(fmt.Sprintf("lds-%d.log", time.Now().UnixNano()))
+	if err != nil {
+		log.Errorf("export error: %s", err)
+		return
+	}*/
+}
+
+func setLevel(level log.Level) {
+	log.SetLevel(level)
+}
+
 func beginMQTTForm() {
 	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 170})
@@ -312,7 +330,7 @@ func connectClient() error {
 
 func beginDeviceForm() {
 	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 360})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 380})
 	imgui.Begin("Device")
 	imgui.PushItemWidth(250.0)
 	imgui.InputTextV("Device EUI", &config.Device.DevEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevEUI, 16))
@@ -323,6 +341,7 @@ func beginDeviceForm() {
 	imgui.InputTextV("AppSKey", &config.Device.AppSKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppSKey, 32))
 	imgui.InputTextV("NwkKey", &config.Device.NwkKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkKey, 32))
 	imgui.InputTextV("AppKey", &config.Device.AppKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppKey, 32))
+	imgui.InputTextV("Join EUI", &config.Device.JoinEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.JoinEUI, 16))
 	if imgui.BeginCombo("Marshaler", config.Device.Marshaler) {
 		for _, marshaler := range marshalers {
 			if imgui.SelectableV(marshaler, marshaler == config.Device.Marshaler, 0, imgui.Vec2{}) {
@@ -432,7 +451,10 @@ func setDevice() {
 	if err != nil {
 		return
 	}
-	appEUI := [8]byte{0, 0, 0, 0, 0, 0, 0, 0}
+	joinEUI, err := lds.HexToEUI(config.Device.JoinEUI)
+	if err != nil {
+		return
+	}
 
 	cDevice = &lds.Device{
 		DevEUI:      devEUI,
@@ -443,7 +465,7 @@ func setDevice() {
 		AppSKey:     appSKey,
 		AppKey:      appKey,
 		NwkKey:      nwkKey,
-		AppEUI:      appEUI,
+		JoinEUI:     joinEUI,
 		UlFcnt:      0,
 		DlFcnt:      0,
 		Major:       lorawan.Major(config.Device.Major),
@@ -454,7 +476,7 @@ func setDevice() {
 }
 
 func beginLoRaForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 575})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 595})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 320})
 	imgui.Begin("LoRa Configuration")
 	imgui.PushItemWidth(250.0)
@@ -504,7 +526,7 @@ func beginLoRaForm() {
 
 func beginDataForm() {
 	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 540})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 560})
 	imgui.Begin("Data")
 	imgui.Text("Raw data")
 	imgui.PushItemWidth(150.0)
@@ -525,10 +547,10 @@ func beginDataForm() {
 		}
 	}
 
-	imgui.Separator()
+	/*imgui.Separator()
 	imgui.Text("MAC Commands")
 	beginMACCommands()
-	imgui.Separator()
+	imgui.Separator()*/
 
 	imgui.Text("Encoded data")
 	if imgui.Button("Add encoded type") {
@@ -576,16 +598,11 @@ func beginDataForm() {
 }
 
 func beginOutput() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 575})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 750, Y: 320})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 595})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 320})
 	imgui.Begin("Output")
-	if imgui.Button("Clear") {
-		ow.Text = ""
-	}
-	imgui.Separator()
-	//imgui.PushStyleColor(imgui.StyleColorID(1), imgui.Vec4{X: 0.2, Y: 0.2, Z: 0.2, W: 0.5})
 	imgui.PushTextWrapPos()
-	imgui.PushStyleColor(imgui.StyleColorText, imgui.Vec4{X: 0.4, Y: 0.4, Z: 0.4, W: 0.5})
+	imgui.PushStyleColor(imgui.StyleColorText, imgui.Vec4{X: 0.1, Y: 0.8, Z: 0.1, W: 0.5})
 	imgui.Text(ow.Text)
 	imgui.PopStyleColor()
 	imgui.End()
@@ -606,6 +623,43 @@ func beginMenu() {
 
 			if imgui.MenuItem("Save") {
 				saveFile = true
+			}
+
+			imgui.EndMenu()
+		}
+		if imgui.BeginMenu("Console") {
+			if imgui.MenuItem("Clear") {
+				ow.Text = ""
+				ow.Counter = 0
+			}
+
+			if imgui.MenuItem("Copy") {
+				err := clipboard.WriteAll(ow.Text)
+				if err != nil {
+					log.Errorf("copy error: %s", err)
+				}
+			}
+
+			imgui.EndMenu()
+		}
+		if imgui.BeginMenu("Log level") {
+			if imgui.MenuItem("Debug") {
+				setLevel(log.DebugLevel)
+			}
+			if imgui.MenuItem("Info") {
+				setLevel(log.InfoLevel)
+			}
+			if imgui.MenuItem("Warning") {
+				setLevel(log.WarnLevel)
+			}
+			if imgui.MenuItem("Error") {
+				setLevel(log.ErrorLevel)
+			}
+			if imgui.MenuItem("Copy") {
+				err := clipboard.WriteAll(ow.Text)
+				if err != nil {
+					log.Errorf("copy error: %s", err)
+				}
 			}
 
 			imgui.EndMenu()
@@ -725,7 +779,7 @@ func main() {
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, 1)
 
-	window, err := glfw.CreateWindow(1200, 900, "LoRaServer ABP device simulator", nil, nil)
+	window, err := glfw.CreateWindow(1200, 920, "LoRaServer device simulator", nil, nil)
 	if err != nil {
 		panic(err)
 	}

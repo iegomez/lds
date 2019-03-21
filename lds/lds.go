@@ -64,7 +64,7 @@ type Device struct {
 	AppSKey     lorawan.AES128Key  `json:"appSKey"`
 	NwkKey      [16]byte           `json:"nwkKey"`
 	AppKey      [16]byte           `json:"appKey"`
-	AppEUI      lorawan.EUI64      `json:"appEUI"`
+	JoinEUI     lorawan.EUI64      `json:"joinEUI"`
 	Major       lorawan.Major      `json:"major"`
 	MACVersion  lorawan.MACVersion `json:"macVersion"`
 	UlFcnt      uint32             `json:"ulFcnt"`
@@ -158,7 +158,7 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 			Major: lorawan.LoRaWANR1,
 		},
 		MACPayload: &lorawan.JoinRequestPayload{
-			JoinEUI:  d.AppEUI,
+			JoinEUI:  d.JoinEUI,
 			DevEUI:   d.DevEUI,
 			DevNonce: d.DevNonce,
 		},
@@ -210,9 +210,9 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 					ADRACKReq: false,
 					ACK:       true,
 				},
-				FCnt: d.UlFcnt,
+				FCnt:  d.UlFcnt,
 				FOpts: []lorawan.Payload{
-					&lorawan.MACCommand{
+					/*&lorawan.MACCommand{
 						CID: lorawan.RXParamSetupAns,
 						Payload: &lorawan.RXParamSetupAnsPayload{
 							ChannelACK:     true,
@@ -223,7 +223,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 					&lorawan.MACCommand{
 						CID:     lorawan.RXTimingSetupAns,
 						Payload: nil,
-					},
+					},*/
 				},
 			},
 			FPort:      &fPort,
@@ -320,7 +320,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 	log.Debugf("marshaled message: %v\n", string(bytes))
 
 	if token := client.Publish("gateway/"+gwMAC+"/rx", 0, false, bytes); token.Wait() && token.Error() != nil {
-		fmt.Println(token.Error())
+		log.Errorf("publish error: %s", token.Error())
 		return d.UlFcnt, token.Error()
 	}
 
@@ -333,7 +333,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 
 //ProcessDownlink processes a downlink message from the loraserver.
 func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (string, error) {
-	log.Infof("original dlmessage: %s", string(dlMessage))
+	log.Debugf("original dlmessage: %s", string(dlMessage))
 	var df map[string]interface{}
 	err := json.Unmarshal(dlMessage, &df)
 	if err != nil {
@@ -365,8 +365,6 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 		log.Errorf("can't decrypt join accept: %s", err)
 	}
 
-	log.Infof("unmarshaled: %s", payload)
-
 	ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
 	if err != nil {
 		log.Error("failed at join mic function")
@@ -389,7 +387,7 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 
 	jap := phy.MACPayload.(*lorawan.JoinAcceptPayload)
 
-	log.Infof("join accept payload: %+v", jap)
+	log.Debugf("join accept payload: %+v", jap)
 
 	//Check that JoinNonce is greater than the one already stored.
 	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
@@ -454,7 +452,7 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 		return "", err
 	}
 	if !ok {
-		return "", errors.New("downlin error: invalid mic")
+		return "", errors.New("downlink error: invalid mic")
 	}
 
 	if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {

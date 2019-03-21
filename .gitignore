@@ -8,3 +8,4 @@ cli/conf.toml
 scroll_test
 *.log
 gui
+/confs

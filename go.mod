@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/andlabs/ui v0.0.0-20180902183112-867a9e5a498d
+	github.com/atotto/clipboard v0.1.2
 	github.com/brocaar/loraserver v2.3.0+incompatible
 	github.com/brocaar/lorawan v0.0.0-20181103141609-18588db1582c
 	github.com/eclipse/paho.mqtt.golang v1.1.1
