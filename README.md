@@ -137,7 +137,7 @@ func GenerateInt(originalInt, numBytes int32) []byte {
 
 Values may be added using the `Add encoded type` button and setting the options:
 
-![](images/lds_screen.png?raw=true)
+![](images/new-gui.png?raw=true)
 
 ### Building
 
