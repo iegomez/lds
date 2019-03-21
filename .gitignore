@@ -9,3 +9,4 @@ scroll_test
 *.log
 gui
 /confs
+/.idea
