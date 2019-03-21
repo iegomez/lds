@@ -1,41 +1,53 @@
 ## Loraserver device simulator
 
-This is an utility program to simulate ABP devices uplinks for the [loraserver](https://loraserver.io) project.  Basically, it acts as if a `lora-gateway-bridge` had received a packet and publishes through MQTT for a corresponding `loraserver` to receive it.
+This is an utility program to simulate devices for the [loraserver](https://loraserver.io) project.  Basically, it acts as a `lora-gateway-bridge` middleman, publishing and receiving messages through MQTT.
 It supports all bands and configurations LoRaWAN versions 1.0 and 1.1.  
 
-It has a simple but complete GUI (built with https://github.com/andlabs/ui) that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
+It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
 
-The program may also be executed in cli mode, with an additional interval setting to send every <interval> seconds. Check the cli dir for the code and build it with `go build`.
+**Important**: This is a work in progress. It works mostly fine to simulate LoRaWAN 1.0 devices, either ABP or OTAA, but OTAA is not working for LoRaWAN 1.1 (ABP works fine). There may be other bugs too, the `cli` mode needs to be rewritten, etc.
+
 
 ### Conf
 
-The GUI allows to modify all options, but they may also be seeded with a conf file for ease of use. An example file is provided to get an idea, but the program will only load a conf file with the name `conf.toml` located at the same dir as the binary:
+The GUI allows to modify all options, but they may also be seeded with a conf file for ease of use. An example file is provided to get an idea, but the program will only load a conf file with the name `conf.toml` located at the same dir as the binary, or if the path is given with the `--conf` flag:
 
 ```toml
 #Configuration.
+log_level="info"
+
+[redis]
+addr="localhost:6379"
+password=""
+db=10
+
 [mqtt]
-server="tcp://localhost:1883"
-user="your-user"
-password="your-password"
+server="tcp://broker-host:1883"
+user="mqtt_user"
+password="mqtt_password"
 
 [gateway]
-mac="your-gw-mac"
+mac="b827ebfffe9448d0"
 
 [band]
-name="US_902_928"
+name="AU_915_928"
 
 [device]
-eui="0000000000000001"
-address="00815bd9"
-network_session_encription_key="aee1da4b88979ae4f75475ff0db51c04"
-serving_network_session_integrity_key="e0422b2a0307f24b2986e5b24ca8d3d9"
-forwarding_network_session_integrity_key="bc97ea1ff62e7a3490135d989aae6bca"
-application_session_key="037882c03dd6b20724b44d623abb4f95"
+eui="0000000000000003"
+address="019b58cf"
+network_session_encription_key="13ef56f3089a68252cd7d873fcecf009"
+serving_network_session_integrity_key="13ef56f3089a68252cd7d873fcecf009"
+forwarding_network_session_integrity_key="13ef56f3089a68252cd7d873fcecf009"
+application_session_key="9d12b80004300f957c154da245c68029"
 marshaler="json"
 nwk_key="00000000000000010000000000000001"
 app_key="00000000000000010000000000000001"
+join_eui="0000000000000003"
 major=0
 mac_version=1
+mtype=2
+profile="OTAA"
+joined=false
 
 [data_rate]
 bandwith=125
@@ -46,7 +58,7 @@ bit_rate=0
 channel=0
 code_rate="4/5"
 crc_status=1
-frequency=902300000
+frequency=916800000
 lora_snr=7.0
 rf_chain=1
 rssi=-57
@@ -55,11 +67,29 @@ rssi=-57
 payload="ff00"
 use_raw=false
 
-[default_data]
-names = ["Temp", "Lat", "Lng"]
-#float and int are supported
-types = ["int", "float", "float"]
-data = [[25, 255, 1], [-33.4348474, 90.0, 4.0], [-70.6157308, 180.0, 4.0]]
+[[encoded_type]]
+name="Flags"
+is_float=false
+num_bytes=1
+value=5.0
+max_value=255.0
+min_value=0.0
+
+[[encoded_type]]
+name="Batería"
+is_float=false
+num_bytes=1
+value=80.0
+max_value=255.0
+min_value=0.0
+
+[[encoded_type]]
+name="Luz"
+is_float=false
+num_bytes=1
+value=50.0
+max_value=255.0
+min_value=-0.0
 ```
 
 ### Data
@@ -105,19 +135,17 @@ func GenerateInt(originalInt, numBytes int32) []byte {
 }
 ```
 
-Values may be added using the `Add value` button and setting the options:
+Values may be added using the `Add encoded type` button and setting the options:
 
 ![](images/lds_screen.png?raw=true)
 
 ### Building
 
-The package is written in Go and tested with v 1.10.3. Make sure you have go installed before.  
+The package is written in Go and tested with v 1.12. Make sure you have go installed before.  
 
-The GUI is built using https://github.com/andlabs/ui, so please check that repo to see requirements for your system. Once those are met, you may build the package like this: 
+The GUI is built using https://github.com/inkyblackness/imgui-go and OpenGL 3.2, so please check that repo to see requirements for your system. Once those are met, you may build the package like this: 
 
 ```
-make dev-requirements
-make requirements
 make
 ```
 

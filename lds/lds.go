@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
+	"strconv"
+
+	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/go-redis/redis"
 )
 
 //Message holds physical payload and rx info.
@@ -53,25 +56,47 @@ type DataRate struct {
 
 //Device holds device keys, addr, eui and fcnt.
 type Device struct {
-	DevEUI      lorawan.EUI64
-	DevAddr     lorawan.DevAddr
-	NwkSEncKey  lorawan.AES128Key
-	SNwkSIntKey lorawan.AES128Key
-	FNwkSIntKey lorawan.AES128Key
-	AppSKey     lorawan.AES128Key
-	NwkKey      [16]byte
-	AppKey      [16]byte
-	AppEUI      lorawan.EUI64
-	Major       lorawan.Major
-	MACVersion  lorawan.MACVersion
-	UlFcnt      uint32
-	DlFcnt      uint32
+	DevEUI      lorawan.EUI64      `json:"devEUI"`
+	DevAddr     lorawan.DevAddr    `json:"devAddr"`
+	NwkSEncKey  lorawan.AES128Key  `json:"nwkSEncKey"`
+	SNwkSIntKey lorawan.AES128Key  `json:"sNwkSIntKey"`
+	FNwkSIntKey lorawan.AES128Key  `json:"fNwksSIntKey"`
+	AppSKey     lorawan.AES128Key  `json:"appSKey"`
+	NwkKey      [16]byte           `json:"nwkKey"`
+	AppKey      [16]byte           `json:"appKey"`
+	JoinEUI     lorawan.EUI64      `json:"joinEUI"`
+	Major       lorawan.Major      `json:"major"`
+	MACVersion  lorawan.MACVersion `json:"macVersion"`
+	UlFcnt      uint32             `json:"ulFcnt"`
+	DlFcnt      uint32             `json:"dlFcnt"`
 	marshal     func(msg proto.Message) ([]byte, error)
 	unmarshal   func(b []byte, msg proto.Message) error
+	Profile     string            `json:"profile"`
+	Joined      bool              `json:"joined"`
+	DevNonce    lorawan.DevNonce  `json:"devNonce"`
+	JoinNonce   lorawan.JoinNonce `json:"joinNonce"`
 }
 
+var redisClient *redis.Client
+
+//StartRedis tries to connect to Redis (used for DevNonce and JoinNonce).
+func StartRedis(addr, password string, db int) error {
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: password,
+		DB:       db,
+	})
+
+	_, err := redisClient.Ping().Result()
+	if err != nil {
+		log.Errorf("couldn't start Redis, only ABP profile will work. error: %s", err)
+		return err
+	}
+	return nil
+}
+
+//SetMarshaler sets marshaling and unmarshaling functions according to the given option.
 func (d *Device) SetMarshaler(opt string) {
-	log.Printf("switching to marshaler: %s\n", opt)
 	switch opt {
 	case "json":
 		d.marshal = func(msg proto.Message) ([]byte, error) {
@@ -110,8 +135,22 @@ func (d *Device) SetMarshaler(opt string) {
 	}
 }
 
-//Join sends a join request for a given device (OTAA) and rxInfo. DEPRECATED, will be reimplemented.
+//Join sends a join request for a given device (OTAA) and rxInfo.
 func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
+
+	d.Joined = false
+	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
+	var devNonce uint16
+	sdn, err := redisClient.Get(devNonceKey).Result()
+	if err == nil {
+		dn, err := strconv.Atoi(sdn)
+		if err == nil {
+			devNonce = uint16(dn + 1)
+		}
+	}
+	redisClient.Set(devNonceKey, devNonce, 0)
+
+	d.DevNonce = lorawan.DevNonce(devNonce)
 
 	joinPhy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
@@ -119,13 +158,13 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 			Major: lorawan.LoRaWANR1,
 		},
 		MACPayload: &lorawan.JoinRequestPayload{
-			JoinEUI:  d.AppEUI,
+			JoinEUI:  d.JoinEUI,
 			DevEUI:   d.DevEUI,
-			DevNonce: lorawan.DevNonce(uint16(65535)),
+			DevNonce: d.DevNonce,
 		},
 	}
 
-	if err := joinPhy.SetUplinkJoinMIC(d.AppKey); err != nil {
+	if err := joinPhy.SetUplinkJoinMIC(d.NwkKey); err != nil {
 		return err
 	}
 
@@ -146,7 +185,17 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 }
 
 //Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
-func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) error {
+func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) (uint32, error) {
+
+	//Get uplink frame counter.
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	uf, err := redisClient.Get(ulFcntKey).Result()
+	if err == nil {
+		ufn, err := strconv.Atoi(uf)
+		if err == nil {
+			d.UlFcnt = uint32(ufn) + 1
+		}
+	}
 
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
@@ -159,10 +208,23 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 				FCtrl: lorawan.FCtrl{
 					ADR:       false,
 					ADRACKReq: false,
-					ACK:       false,
+					ACK:       true,
 				},
 				FCnt:  d.UlFcnt,
-				FOpts: []lorawan.Payload{}, // you can leave this out when there is no MAC command to send
+				FOpts: []lorawan.Payload{
+					/*&lorawan.MACCommand{
+						CID: lorawan.RXParamSetupAns,
+						Payload: &lorawan.RXParamSetupAnsPayload{
+							ChannelACK:     true,
+							RX1DROffsetACK: true,
+							RX2DataRateACK: true,
+						},
+					},
+					&lorawan.MACCommand{
+						CID:     lorawan.RXTimingSetupAns,
+						Payload: nil,
+					},*/
+				},
 			},
 			FPort:      &fPort,
 			FRMPayload: []lorawan.Payload{&lorawan.DataPayload{Bytes: payload}},
@@ -170,21 +232,21 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 	}
 
 	if err := phy.EncryptFRMPayload(d.AppSKey); err != nil {
-		fmt.Printf("encrypt frm payload: %s", err)
-		return err
+		log.Debugf("encrypt frm payload: %s", err)
+		return d.UlFcnt, err
 	}
 
 	if d.MACVersion == lorawan.LoRaWAN1_0 {
 		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey); err != nil {
-			fmt.Printf("set uplink mic error: %s", err)
-			return err
+			log.Debugf("set uplink mic error: %s", err)
+			return d.UlFcnt, err
 		}
 		phy.ValidateUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey)
 	} else if d.MACVersion == lorawan.LoRaWAN1_1 {
 		//Get the band.
 		b, err := band.GetConfig(bandName, false, lorawan.DwellTime400ms)
 		if err != nil {
-			return err
+			return d.UlFcnt, err
 		}
 		//Get DR index from a dr.
 		dataRate := band.DataRate{
@@ -195,7 +257,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		}
 		txDR, err := b.GetDataRateIndex(true, dataRate)
 		if err != nil {
-			return err
+			return d.UlFcnt, err
 		}
 		//Get tx ch.
 		var txCh int
@@ -207,7 +269,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 
 			c, err := b.GetUplinkChannel(i)
 			if err != nil {
-				return err
+				return d.UlFcnt, err
 			}
 
 			// there could be multiple channels using the same frequency, but with different data-rates.
@@ -221,26 +283,24 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		//Encrypt fOPts.
 		if err := phy.EncryptFOpts(d.NwkSEncKey); err != nil {
 			log.Errorf("encrypt fopts error: %s", err)
-			return err
+			return d.UlFcnt, err
 		}
 
 		//Now set the MIC.
-		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, 0, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
+		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, d.UlFcnt, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
 			log.Errorf("set uplink mic error: %s", err)
-			return err
+			return d.UlFcnt, err
 		}
 
-		log.Printf("Got MIC: %s\n", phy.MIC)
-
 	} else {
-		return errors.New("unknown lorawan version")
+		return d.UlFcnt, errors.New("unknown lorawan version")
 	}
 
 	phyBytes, err := phy.MarshalBinary()
 	if err != nil {
 		if err != nil {
-			fmt.Printf("marshal binary error: %s", err)
-			return err
+			log.Debugf("marshal binary error: %s\n", err)
+			return d.UlFcnt, err
 		}
 	}
 
@@ -250,22 +310,202 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		TxInfo:     txInfo,
 	}
 
-	fmt.Printf("Message PHY payload: %v\n", string(message.PhyPayload))
+	log.Debugf("payload: %v\n", string(message.PhyPayload))
 
 	bytes, err := d.marshal(&message)
 	if err != nil {
-		return err
+		return d.UlFcnt, err
 	}
 
-	fmt.Printf("Marshaled message: %v\n", string(bytes))
+	log.Debugf("marshaled message: %v\n", string(bytes))
 
 	if token := client.Publish("gateway/"+gwMAC+"/rx", 0, false, bytes); token.Wait() && token.Error() != nil {
-		fmt.Println(token.Error())
-		return token.Error()
+		log.Errorf("publish error: %s", token.Error())
+		return d.UlFcnt, token.Error()
 	}
 
-	return nil
+	//Message was sent, UlFcnt can be set.
+	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 
+	return d.UlFcnt, nil
+
+}
+
+//ProcessDownlink processes a downlink message from the loraserver.
+func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (string, error) {
+	log.Debugf("original dlmessage: %s", string(dlMessage))
+	var df map[string]interface{}
+	err := json.Unmarshal(dlMessage, &df)
+	if err != nil {
+		return "", err
+	}
+	var phy lorawan.PHYPayload
+	payload := []byte(df["phyPayload"].(string))
+	//log.Infof("encrypted payload: %s", string(payload))
+	if err := phy.UnmarshalText(payload); err != nil {
+		log.Error("failed at unmarshal")
+		return "", err
+	}
+
+	//Now we need to check the profile and if we are joined.
+	if d.Profile == "ABP" || d.Joined {
+		return d.processDownlink(phy, payload, mv)
+	}
+
+	//If we are not joined, we need to process the join response.
+	return d.processJoinResponse(phy, payload, mv)
+
+}
+
+func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
+	log.Infoln("processing join response")
+
+	err := phy.DecryptJoinAcceptPayload(d.NwkKey)
+	if err != nil {
+		log.Errorf("can't decrypt join accept: %s", err)
+	}
+
+	ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
+	if err != nil {
+		log.Error("failed at join mic function")
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("join invalid mic")
+	}
+
+	if err := phy.DecryptFOpts(d.NwkKey); err != nil {
+		log.Error("failed at opts decryption")
+		return "", err
+	}
+
+	phyJSON, err := phy.MarshalJSON()
+	if err != nil {
+		log.Error("failed at json marshal")
+		return "", err
+	}
+
+	jap := phy.MACPayload.(*lorawan.JoinAcceptPayload)
+
+	log.Debugf("join accept payload: %+v", jap)
+
+	//Check that JoinNonce is greater than the one already stored.
+	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
+	var joinNonce lorawan.JoinNonce
+	sjn, err := redisClient.Get(joinNonceKey).Result()
+	if err == nil {
+		jn, err := strconv.Atoi(sjn)
+		if err == nil {
+			joinNonce = lorawan.JoinNonce(jn + 1)
+		}
+	}
+
+	if jap.JoinNonce <= joinNonce {
+		return "", errors.New("got lower or equal JoinNonce from server")
+	}
+
+	redisClient.Set(joinNonceKey, joinNonce, 0)
+
+	d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	if d.MACVersion == 0 {
+		d.NwkSEncKey = d.FNwkSIntKey
+		d.SNwkSIntKey = d.FNwkSIntKey
+	} else {
+		d.NwkSEncKey, err = getNwkSEncKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+		d.SNwkSIntKey, err = getSNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	}
+	if jap.DLSettings.OptNeg {
+		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.AppKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	} else {
+		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+	}
+	d.DevAddr = jap.DevAddr
+	d.Joined = true
+	d.UlFcnt = 0
+	d.DlFcnt = 0
+
+	//Set frame counters to 0.
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+
+	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
+
+	return string(phyJSON), nil
+}
+
+func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
+
+	//Get downlink frame counter and icnrease it by 1.
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	df, err := redisClient.Get(dlFcntKey).Result()
+	if err == nil {
+		dfn, err := strconv.Atoi(df)
+		if err == nil {
+			d.DlFcnt = uint32(dfn)
+		}
+	}
+
+	ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
+	if err != nil {
+		log.Error("failed at downlink mic function")
+		return "", err
+	}
+	if !ok {
+		return "", errors.New("downlink error: invalid mic")
+	}
+
+	if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
+		log.Error("failed at downlink opts decryption")
+		return "", err
+	}
+
+	if err := phy.DecryptFRMPayload(d.AppSKey); err != nil {
+		log.Error("failed at downlink frm payload decryption")
+		return "", err
+	}
+
+	/*if err := phy.DecodeFOptsToMACCommands(); err != nil {
+		log.Error("failed at downlink opts to mac commands decoding")
+		return "", err
+	}*/
+
+	phyJSON, err := phy.MarshalJSON()
+	if err != nil {
+		log.Error("failed at downlink json marshal")
+		return "", err
+	}
+
+	macPayload := phy.MACPayload.(*lorawan.MACPayload)
+	log.Infof("mac payload: %+v", macPayload)
+
+	for _, fOpt := range macPayload.FHDR.FOpts {
+		opt := fOpt.(*lorawan.MACCommand)
+		log.Infof("fOpt: %+v", opt.Payload)
+	}
+
+	log.Infof("fctrl: %+v", macPayload.FHDR.FCtrl)
+
+	for _, frmPayload := range macPayload.FRMPayload {
+		log.Infof("data payload: %+v", frmPayload.(*lorawan.DataPayload))
+	}
+
+	log.Infof("dlFcnt: %d / received Fcnt: %d", d.DlFcnt, macPayload.FHDR.FCnt)
+
+	//Set downlink frame counter.
+	d.DlFcnt++
+	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
+	return string(phyJSON), nil
+}
+
+//Reset clears all data from redis for a given device.
+func (d *Device) Reset() error {
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	ulFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
+	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
+	_, err := redisClient.Del(dlFcntKey, ulFcntKey, joinNonceKey, devNonceKey).Result()
+	return err
 }
 
 /////////////////////////
@@ -298,10 +538,20 @@ func HexToKey(hexKey string) ([16]byte, error) {
 func HexToEUI(hexEUI string) (lorawan.EUI64, error) {
 	var eui lorawan.EUI64
 	if err := eui.UnmarshalText([]byte(hexEUI)); err != nil {
-		fmt.Errorf("wron eui: %s\n", err)
 		return eui, err
 	}
 	return eui, nil
+}
+
+//KeyToHex converts an AES128Key to its hex representation.
+func KeyToHex(key lorawan.AES128Key) string {
+	h := hex.EncodeToString(key[:])
+	return h
+}
+
+//DevAddressToHex converts a device address to its hex representation.
+func DevAddressToHex(devAddr [4]byte) string {
+	return hex.EncodeToString(devAddr[:])
 }
 
 //MACToGatewayID converts a string mac to a gateway id byte slice.
@@ -327,19 +577,15 @@ func testMIC(appKey [16]byte, appEUI, devEUI [8]byte) error {
 	}
 
 	if err := joinPhy.SetUplinkJoinMIC(appKey); err != nil {
-		fmt.Printf("set uplink join mic error: %s", err)
+		log.Debugf("set uplink join mic error: %s", err)
 		return err
 	}
 
-	fmt.Println("Printing MIC")
-	fmt.Println(hex.EncodeToString(joinPhy.MIC[:]))
-
-	joinStr, err := joinPhy.MarshalText()
+	_, err := joinPhy.MarshalText()
 	if err != nil {
-		fmt.Printf("join marshal error: %s", err)
+		log.Debugf("join marshal error: %s", err)
 		return err
 	}
-	fmt.Println(joinStr)
 
 	return nil
 }
@@ -351,9 +597,6 @@ func publish(client MQTT.Client, topic string, v interface{}) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Publishing:")
-	fmt.Println(string(bytes))
 
 	if token := client.Publish(topic, 0, false, bytes); token.Wait() && token.Error() != nil {
 		fmt.Println(token.Error())
@@ -419,6 +662,7 @@ func generateLng(l float32) []byte {
 	return bRep
 }
 
+//GenerateFloat generates a byte array representation of a float.
 func GenerateFloat(originalFloat, maxValue float32, numBytes int32) []byte {
 	byteArray := make([]byte, numBytes)
 	if numBytes == 4 {
@@ -438,6 +682,7 @@ func GenerateFloat(originalFloat, maxValue float32, numBytes int32) []byte {
 	return byteArray
 }
 
+//GenerateInt generates a byte array representation of an int.
 func GenerateInt(originalInt, numBytes int32) []byte {
 
 	bRep := make([]byte, numBytes)

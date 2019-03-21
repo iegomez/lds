@@ -342,9 +342,11 @@ func run() {
 		}
 
 		//Now send an uplink
-		err = device.Uplink(client, mType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate)
+		ulfc, err := device.Uplink(client, mType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate)
 		if err != nil {
 			log.Printf("couldn't send uplink: %s\n", err)
+		} else {
+			log.Debugf("uplink frame counter is now %d", ulfc)
 		}
 
 		time.Sleep(time.Duration(config.DefaultData.Interval) * time.Second)
