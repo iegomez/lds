@@ -171,7 +171,6 @@ var files []os.FileInfo
 var saveFile bool
 var saveFilename string
 var resetDevice bool
-var macCommand lorawan.CID
 
 func importConf() {
 
@@ -547,10 +546,10 @@ func beginDataForm() {
 		}
 	}
 
-	/*imgui.Separator()
+	imgui.Separator()
 	imgui.Text("MAC Commands")
 	beginMACCommands()
-	imgui.Separator()*/
+	imgui.Separator()
 
 	imgui.Text("Encoded data")
 	if imgui.Button("Add encoded type") {
@@ -987,8 +986,15 @@ func run() {
 			ModulationInfo: umi,
 		}
 
+		var fOpts []*lorawan.MACCommand
+		for i := 0; i < len(macCommands); i++ {
+			if macCommands[i].Use {
+				fOpts = append(fOpts, &macCommands[i].MACCommand)
+			}
+		}
+
 		//Now send an uplink
-		ulfc, err := cDevice.Uplink(mqttClient, config.Device.MType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate)
+		ulfc, err := cDevice.Uplink(mqttClient, config.Device.MType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate, fOpts)
 		if err != nil {
 			log.Errorf("couldn't send uplink: %s", err)
 		} else {
@@ -1004,55 +1010,4 @@ func run() {
 
 	}
 
-}
-
-func maxLength(input string, limit int) func(data imgui.InputTextCallbackData) int32 {
-	return func(data imgui.InputTextCallbackData) int32 {
-		if len(input) >= limit {
-			return 1
-		}
-		return 0
-	}
-}
-
-func handleInt(input string, limit int, uValue *int) func(data imgui.InputTextCallbackData) int32 {
-	return func(data imgui.InputTextCallbackData) int32 {
-		if data.EventFlag() == imgui.InputTextFlagsCallbackCharFilter {
-			if len(input) > limit || data.EventChar() == rune('.') {
-				return 1
-			}
-			return 0
-		}
-		v, err := strconv.Atoi(input)
-		if err == nil {
-			*uValue = v
-		} else {
-			*uValue = 0
-		}
-		return 0
-	}
-}
-
-func handleFloat32(input string, uValue *float32) func(data imgui.InputTextCallbackData) int32 {
-	return func(data imgui.InputTextCallbackData) int32 {
-		v, err := strconv.ParseFloat(input, 32)
-		if err == nil {
-			*uValue = float32(v)
-		} else {
-			*uValue = 0
-		}
-		return 0
-	}
-}
-
-func handleFloat64(input string, uValue *float64) func(data imgui.InputTextCallbackData) int32 {
-	return func(data imgui.InputTextCallbackData) int32 {
-		v, err := strconv.ParseFloat(input, 64)
-		if err == nil {
-			*uValue = v
-		} else {
-			*uValue = 0
-		}
-		return 0
-	}
 }

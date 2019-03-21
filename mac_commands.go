@@ -5,68 +5,167 @@ import (
 	"github.com/inkyblackness/imgui-go"
 )
 
-//List of available mac commands.
-var macCommands = []lorawan.CID{
-	lorawan.ResetInd,
-	lorawan.LinkCheckReq,
-	lorawan.LinkADRAns,
-	lorawan.DutyCycleAns,
-	lorawan.RXParamSetupAns,
-	lorawan.DevStatusAns,
-	lorawan.NewChannelAns,
-	lorawan.RXTimingSetupAns,
-	lorawan.TXParamSetupAns,
-	lorawan.DLChannelAns,
-	lorawan.RekeyInd,
-	lorawan.ADRParamSetupAns,
-	lorawan.DeviceTimeReq,
-	lorawan.RejoinParamSetupAns,
+type macCommandItem struct {
+	MACCommand lorawan.MACCommand
+	Use        bool
 }
 
-//List of mac command payloads for each command.
-var mcPayloads = []lorawan.MACCommandPayload{
-	&lorawan.ResetIndPayload{},
-	&lorawan.LinkCheckAnsPayload{},
-	&lorawan.LinkADRAnsPayload{},
-	nil,
-	&lorawan.RXParamSetupAnsPayload{},
-	&lorawan.DevStatusAnsPayload{},
-	&lorawan.NewChannelAnsPayload{},
-	nil,
-	nil,
-	&lorawan.DLChannelAnsPayload{},
-	&lorawan.RekeyIndPayload{},
-	nil,
-	nil,
-	&lorawan.RejoinParamSetupAnsPayload{},
-}
+//We need some vars to store string representations of payload fields.
+var ResetIndMinorS string
+var RekeyIndMinorS string
+var BatteryS string
+var MarginS string
 
-var mcs = []lorawan.MACCommand{
-	lorawan.MACCommand{
-		CID:     lorawan.ResetInd,
-		Payload: &lorawan.ResetIndPayload{},
+//List of all available mac commands and their payloads.
+var macCommands = []*macCommandItem{
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID: lorawan.ResetInd,
+			Payload: &lorawan.ResetIndPayload{
+				DevLoRaWANVersion: lorawan.Version{
+					Minor: 0,
+				},
+			},
+		},
 	},
-	lorawan.MACCommand{
-		CID:     lorawan.LinkCheckReq,
-		Payload: nil,
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.LinkCheckReq,
+			Payload: nil,
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.LinkADRAns,
+			Payload: &lorawan.LinkADRAnsPayload{},
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.DutyCycleAns,
+			Payload: nil,
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.RXParamSetupAns,
+			Payload: &lorawan.RXParamSetupAnsPayload{},
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.DevStatusAns,
+			Payload: &lorawan.DevStatusAnsPayload{},
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.NewChannelAns,
+			Payload: &lorawan.NewChannelAnsPayload{},
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.RXTimingSetupAns,
+			Payload: nil,
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.TXParamSetupAns,
+			Payload: nil,
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.DLChannelAns,
+			Payload: &lorawan.DLChannelAnsPayload{},
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.RekeyInd,
+			Payload: &lorawan.RekeyIndPayload{},
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.ADRParamSetupAns,
+			Payload: nil,
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.DeviceTimeReq,
+			Payload: nil,
+		},
+	},
+	&macCommandItem{
+		MACCommand: lorawan.MACCommand{
+			CID:     lorawan.RejoinParamSetupAns,
+			Payload: &lorawan.RejoinParamSetupAnsPayload{},
+		},
 	},
 }
 
 func beginMACCommands() {
-	if imgui.BeginCombo("MACCommand", macCommand.String()) {
 
-		for _, mc := range macCommands {
-			if imgui.SelectableV(mc.String(), mc == macCommand, 0, imgui.Vec2{}) {
-				macCommand = mc
+	for i := 0; i < len(macCommands); i++ {
+		macCommand := macCommands[i]
+		imgui.PushItemWidth(200.0)
+		imgui.Checkbox(macCommand.MACCommand.CID.String(), &macCommand.Use)
+		//Create a mac command form depending on the selected mac command.
+		if macCommand.MACCommand.CID != lorawan.CID(0) {
+			switch macCommand.MACCommand.CID {
+			case lorawan.ResetInd:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.ResetIndPayload)
+				imgui.InputTextV("DevLoRaWANVersion##ResetIndPayload-Minor", &ResetIndMinorS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleUint8(ResetIndMinorS, 1, &payload.DevLoRaWANVersion.Minor))
+			case lorawan.LinkADRAns:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.LinkADRAnsPayload)
+				imgui.Checkbox("ChannelMaskACK##LinkADRAns-ChannelMaskACK", &payload.ChannelMaskACK)
+				imgui.SameLine()
+				imgui.Checkbox("DateRateACK##LinkADRAns-DateRateACK", &payload.DataRateACK)
+				imgui.SameLine()
+				imgui.Checkbox("PowerACK##LinkADRAns-PowerACK", &payload.PowerACK)
+			case lorawan.RXParamSetupAns:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.RXParamSetupAnsPayload)
+				imgui.Checkbox("ChannelACK##RXParamSetupAns-ChannelMaskACK", &payload.ChannelACK)
+				imgui.SameLine()
+				imgui.Checkbox("RX2DateRateACK##RXParamSetupAns-RX2DateRateACK", &payload.RX2DataRateACK)
+				imgui.SameLine()
+				imgui.Checkbox("RX1DROffsetACK##RXParamSetupAns-RX1DROffsetACK", &payload.RX1DROffsetACK)
+			case lorawan.DevStatusAns:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.DevStatusAnsPayload)
+				imgui.InputTextV("Battery##devStatusAnsPayload-Battery", &BatteryS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleUint8(BatteryS, 2, &payload.Battery))
+				imgui.SameLine()
+				imgui.InputTextV("Margin##devStatusAnsPayload-Margin", &MarginS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt8(MarginS, 2, &payload.Margin))
+			case lorawan.NewChannelAns:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.NewChannelAnsPayload)
+				imgui.Checkbox("ChannelFrequencyOK##NewChannelAns-ChannelFrequencyOK", &payload.ChannelFrequencyOK)
+				imgui.SameLine()
+				imgui.Checkbox("DataRateRangeOK##NewChannelAns-DataRangeOK", &payload.DataRateRangeOK)
+			case lorawan.DLChannelAns:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.DLChannelAnsPayload)
+				imgui.Checkbox("ChannelFrequencyOK##DLChannelAns-ChannelFrequencyOK", &payload.ChannelFrequencyOK)
+				imgui.SameLine()
+				imgui.Checkbox("UplinkFrequencyExists##DLChannelAns-UplinkFrequencyExists", &payload.UplinkFrequencyExists)
+			case lorawan.RekeyInd:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.RekeyIndPayload)
+				imgui.InputTextV("DevLoRaWANVersion##RekeyIndPayload-Minor", &RekeyIndMinorS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleUint8(RekeyIndMinorS, 1, &payload.DevLoRaWANVersion.Minor))
+			case lorawan.RejoinParamSetupAns:
+				imgui.SameLine()
+				payload := macCommand.MACCommand.Payload.(*lorawan.RejoinParamSetupAnsPayload)
+				imgui.Checkbox("TimeOK##RejoinParamSetupAns-TimeOK", &payload.TimeOK)
+			default:
+				//Nothing to do for nil payload commands.
 			}
-		}
-		imgui.EndCombo()
-	}
-	//Create a mac command form depending on the selected mac command.
-	if macCommand != lorawan.CID(0) {
-		switch macCommand {
-		case lorawan.ResetInd:
-			//lorawan.ResetIndPayload{}
 		}
 	}
 }

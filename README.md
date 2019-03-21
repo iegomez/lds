@@ -139,6 +139,10 @@ Values may be added using the `Add encoded type` button and setting the options:
 
 ![](images/new-gui.png?raw=true)
 
+#### MAC Commands
+
+All [lorawan package](https://github.com/brocaar/lorawan) end-device MAC commands are available to be sent with a message. Check desired mac commands and fill their payloads when needed.
+
 ### Building
 
 The package is written in Go and tested with v 1.12. Make sure you have go installed before.  

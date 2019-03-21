@@ -185,7 +185,7 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 }
 
 //Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
-func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate) (uint32, error) {
+func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate, macCommands []*lorawan.MACCommand) (uint32, error) {
 
 	//Get uplink frame counter.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
@@ -195,6 +195,11 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		if err == nil {
 			d.UlFcnt = uint32(ufn) + 1
 		}
+	}
+
+	var fOpts = make([]lorawan.Payload, len(macCommands))
+	for i := 0; i < len(fOpts); i++ {
+		fOpts[i] = macCommands[i]
 	}
 
 	phy := lorawan.PHYPayload{
@@ -211,20 +216,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 					ACK:       true,
 				},
 				FCnt:  d.UlFcnt,
-				FOpts: []lorawan.Payload{
-					/*&lorawan.MACCommand{
-						CID: lorawan.RXParamSetupAns,
-						Payload: &lorawan.RXParamSetupAnsPayload{
-							ChannelACK:     true,
-							RX1DROffsetACK: true,
-							RX2DataRateACK: true,
-						},
-					},
-					&lorawan.MACCommand{
-						CID:     lorawan.RXTimingSetupAns,
-						Payload: nil,
-					},*/
-				},
+				FOpts: fOpts,
 			},
 			FPort:      &fPort,
 			FRMPayload: []lorawan.Payload{&lorawan.DataPayload{Bytes: payload}},
