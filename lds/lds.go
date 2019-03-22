@@ -420,12 +420,14 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	redisSNwkSIntKey := fmt.Sprintf("ul-SNwkSIntKey-%s", d.DevEUI[:])
 	redisAppSKey := fmt.Sprintf("ul-AppSKey-%s", d.DevEUI[:])
 	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
+	joinKey := fmt.Sprintf("join-%s", d.DevEUI[:])
 
 	redisClient.Set(redisFNwksSIntKey, KeyToHex(d.FNwkSIntKey), 0)
 	redisClient.Set(redisNwkSEncKey, KeyToHex(d.NwkSEncKey), 0)
 	redisClient.Set(redisSNwkSIntKey, KeyToHex(d.SNwkSIntKey), 0)
 	redisClient.Set(redisAppSKey, KeyToHex(d.AppSKey), 0)
 	redisClient.Set(redisDevAddr, DevAddressToHex(d.DevAddr), 0)
+	redisClient.Set(joinKey, "true", 0)
 
 	//Set frame counters to 0.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
@@ -433,6 +435,8 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 
 	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
+
+	log.Infoln("Join successful!")
 
 	return string(phyJSON), nil
 }
@@ -461,20 +465,22 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 		return "", errors.New("downlink error: invalid mic")
 	}
 
-	if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
-		log.Error("failed at downlink opts decryption")
-		return "", err
-	}
-
 	if err := phy.DecryptFRMPayload(d.AppSKey); err != nil {
 		log.Error("failed at downlink frm payload decryption")
 		return "", err
 	}
 
-	/*if err := phy.DecodeFOptsToMACCommands(); err != nil {
-		log.Error("failed at downlink opts to mac commands decoding")
-		return "", err
-	}*/
+	if d.MACVersion == lorawan.LoRaWAN1_0 {
+		if err := phy.DecodeFOptsToMACCommands(); err != nil {
+			log.Error("failed at downlink opts to mac commands decoding")
+			return "", err
+		}
+	} else {
+		if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
+			log.Error("failed at downlink opts decryption")
+			return "", err
+		}
+	}
 
 	phyJSON, err := phy.MarshalJSON()
 	if err != nil {
@@ -484,11 +490,6 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 
 	macPayload := phy.MACPayload.(*lorawan.MACPayload)
 	log.Infof("mac payload: %+v", macPayload)
-
-	for _, fOpt := range macPayload.FHDR.FOpts {
-		opt := fOpt.(*lorawan.MACCommand)
-		log.Infof("fOpt: %+v", opt.Payload)
-	}
 
 	log.Infof("fctrl: %+v", macPayload.FHDR.FCtrl)
 
@@ -512,8 +513,36 @@ func (d *Device) Reset() error {
 	redisSNwkSIntKey := fmt.Sprintf("ul-SNwkSIntKey-%s", d.DevEUI[:])
 	redisAppSKey := fmt.Sprintf("ul-AppSKey-%s", d.DevEUI[:])
 	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
-	_, err := redisClient.Del(dlFcntKey, ulFcntKey, joinNonceKey, devNonceKey, redisFNwksSIntKey, redisNwkSEncKey, redisSNwkSIntKey, redisAppSKey, redisDevAddr).Result()
-	return err
+	joinKey := fmt.Sprintf("join-%s", d.DevEUI[:])
+	_, oErr := redisClient.Del(dlFcntKey, ulFcntKey, joinNonceKey, devNonceKey, redisFNwksSIntKey, redisNwkSEncKey, redisSNwkSIntKey, redisAppSKey, redisDevAddr, joinKey).Result()
+	if oErr == nil {
+		d.DlFcnt = 0
+		d.UlFcnt = 0
+		d.DevNonce = 0
+		d.JoinNonce = 0
+		var err error
+		d.FNwkSIntKey, err = HexToKey("00000000000000000000000000000000")
+		if err != nil {
+			return err
+		}
+		d.NwkSEncKey, err = HexToKey("00000000000000000000000000000000")
+		if err != nil {
+			return err
+		}
+		d.SNwkSIntKey, err = HexToKey("00000000000000000000000000000000")
+		if err != nil {
+			return err
+		}
+		d.AppSKey, err = HexToKey("00000000000000000000000000000000")
+		if err != nil {
+			return err
+		}
+		d.DevAddr, err = HexToDevAddress("0000000000000000")
+		if err != nil {
+			return err
+		}
+	}
+	return oErr
 }
 
 //GetInfo retrieves device info stored in Redis.
@@ -573,6 +602,7 @@ func (d *Device) GetInfo() bool {
 	redisSNwkSIntKey := fmt.Sprintf("ul-SNwkSIntKey-%s", d.DevEUI[:])
 	redisAppSKey := fmt.Sprintf("ul-AppSKey-%s", d.DevEUI[:])
 	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
+	joinKey := fmt.Sprintf("join-%s", d.DevEUI[:])
 
 	fNwksSIntKey, err := redisClient.Get(redisFNwksSIntKey).Result()
 	if err != nil {
@@ -613,6 +643,10 @@ func (d *Device) GetInfo() bool {
 	d.DevAddr, err = HexToDevAddress(devAddr)
 	if err != nil {
 		return false
+	}
+	joined, err := redisClient.Get(joinKey).Result()
+	if err == nil && joined == "true" {
+		d.Joined = true
 	}
 	return true
 }

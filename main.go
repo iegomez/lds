@@ -41,21 +41,21 @@ type band struct {
 }
 
 type device struct {
-	DevEUI      string             `toml:"eui"`
-	DevAddress  string             `toml:"address"`
-	NwkSEncKey  string             `toml:"network_session_encription_key"`
-	SNwkSIntKey string             `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
-	FNwkSIntKey string             `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
-	AppSKey     string             `toml:"application_session_key"`
-	Marshaler   string             `toml:"marshaler"`
-	NwkKey      string             `toml:"nwk_key"`     //Network key, used to be called application key for Lorawan 1.0
-	AppKey      string             `toml:"app_key"`     //Application key, for Lorawan 1.1
-	JoinEUI     string             `toml:"join_eui"`    //JoinEUI for 1.1. (AppEUI on 1.0)
-	Major       lorawan.Major      `toml:"major"`       //Lorawan major version
+	DevEUI      string `toml:"eui"`
+	DevAddress  string `toml:"address"`
+	NwkSEncKey  string `toml:"network_session_encription_key"`
+	SNwkSIntKey string `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
+	FNwkSIntKey string `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
+	AppSKey     string `toml:"application_session_key"`
+	Marshaler   string `toml:"marshaler"`
+	NwkKey      string `toml:"nwk_key"`  //Network key, used to be called application key for Lorawan 1.0
+	AppKey      string `toml:"app_key"`  //Application key, for Lorawan 1.1
+	JoinEUI     string `toml:"join_eui"` //JoinEUI for 1.1. (AppEUI on 1.0)
+	Major       lorawan.Major
 	MACVersion  lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
-	MType       lorawan.MType      `toml:"mtype"`       //LoRaWAN mtype (ConfirmedDataUp or UnconfirmedDataUp)
-	Profile     string             `toml:"profile"`
-	Joined      bool               `toml:"joined"`
+	MType       lorawan.MType
+	Profile     string `toml:"profile"`
+	Joined      bool   `toml:"joined"`
 }
 
 type dataRate struct {
@@ -171,6 +171,8 @@ var files []os.FileInfo
 var saveFile bool
 var saveFilename string
 var resetDevice bool
+var windowWidth = 1200
+var windowHeight = 920
 
 func importConf() {
 
@@ -179,7 +181,9 @@ func importConf() {
 
 		cGw := gateway{}
 
-		cDev := device{}
+		cDev := device{
+			MType: lorawan.UnconfirmedDataUp,
+		}
 
 		cBand := band{}
 
@@ -371,7 +375,7 @@ func beginDeviceForm() {
 		imgui.EndCombo()
 	}
 	if imgui.BeginCombo("MType", mTypes[config.Device.MType]) {
-		if imgui.SelectableV("UnconfirmedDataUp", config.Device.MType == lorawan.UnconfirmedDataUp, 0, imgui.Vec2{}) {
+		if imgui.SelectableV("UnconfirmedDataUp", config.Device.MType == lorawan.UnconfirmedDataUp || config.Device.MType == 0, 0, imgui.Vec2{}) {
 			config.Device.MType = lorawan.UnconfirmedDataUp
 		}
 		if imgui.SelectableV("ConfirmedDataUp", config.Device.MType == lorawan.ConfirmedDataUp, 0, imgui.Vec2{}) {
@@ -487,7 +491,6 @@ func setDevice() {
 		cDevice.MACVersion = lorawan.MACVersion(config.Device.MACVersion)
 	}
 	cDevice.SetMarshaler(config.Device.Marshaler)
-	log.Infof("using marshaler: %s", config.Device.Marshaler)
 	//Get redis info.
 	if cDevice.GetInfo() {
 		config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
@@ -496,7 +499,6 @@ func setDevice() {
 		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
 		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
 	}
-	log.Infof("cDevice: %+v", cDevice)
 }
 
 func beginLoRaForm() {
@@ -707,7 +709,7 @@ func beginOpenFile() {
 		imgui.OpenPopup("Select file")
 		openFile = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-190) / 2, Y: float32(windowHeight-90) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Select file") {
@@ -744,7 +746,7 @@ func beginSaveFile() {
 		imgui.OpenPopup("Save file")
 		saveFile = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-190) / 2, Y: float32(windowHeight-90) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Save file") {
@@ -770,7 +772,7 @@ func beginReset() {
 		imgui.OpenPopup("Reset device")
 		resetDevice = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-190) / 2, Y: float32(windowHeight-90) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Reset device") {
@@ -788,6 +790,11 @@ func beginReset() {
 			if err != nil {
 				log.Errorln(err)
 			} else {
+				config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
+				config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
+				config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
+				config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
+				config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
 				log.Infoln("device was reset")
 			}
 			imgui.CloseCurrentPopup()
@@ -813,7 +820,7 @@ func main() {
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, 1)
 
-	window, err := glfw.CreateWindow(1200, 920, "LoRaServer device simulator", nil, nil)
+	window, err := glfw.CreateWindow(windowWidth, windowHeight, "LoRaServer device simulator", nil, nil)
 	if err != nil {
 		panic(err)
 	}
