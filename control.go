@@ -16,6 +16,8 @@ var RekeyIndMinorS string
 var BatteryS string
 var MarginS string
 
+var fCtrl lorawan.FCtrl
+
 //List of all available mac commands and their payloads.
 var macCommands = []*macCommandItem{
 	&macCommandItem{
@@ -168,4 +170,16 @@ func beginMACCommands() {
 			}
 		}
 	}
+}
+
+func beginFCtrl() {
+	imgui.Checkbox("ACK##FCtrl-ACK", &fCtrl.ACK)
+	imgui.SameLine()
+	imgui.Checkbox("ADR##FCtrl-ADR", &fCtrl.ADR)
+	imgui.SameLine()
+	imgui.Checkbox("ADRACKReq##FCtrl-ADRACKReq", &fCtrl.ADRACKReq)
+	imgui.SameLine()
+	imgui.Checkbox("ClassB##FCtrl-ClassB", &fCtrl.ClassB)
+	imgui.SameLine()
+	imgui.Checkbox("FPending##FCtrl-FPending", &fCtrl.FPending)
 }

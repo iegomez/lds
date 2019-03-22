@@ -233,6 +233,9 @@ func importConf() {
 	config.RXInfo.LoRASNRS = strconv.FormatFloat(config.RXInfo.LoRaSNR, 'f', -1, 64)
 	config.RXInfo.RfChainS = strconv.Itoa(config.RXInfo.RfChain)
 	config.RXInfo.RssiS = strconv.Itoa(config.RXInfo.Rssi)
+
+	//Set the device with the given options.
+	setDevice()
 }
 
 func exportConf(filename string) {
@@ -268,8 +271,8 @@ func setLevel(level log.Level) {
 }
 
 func beginMQTTForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 170})
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 170})
 	imgui.Begin("MQTT & Gateway")
 	imgui.Separator()
 	imgui.PushItemWidth(250.0)
@@ -322,14 +325,16 @@ func connectClient() error {
 			} else {
 				log.Infof("received message: %s", dlMessage)
 			}
+			//Get redis info.
+			cDevice.GetInfo()
 		}
 	})
 	return nil
 }
 
 func beginDeviceForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 380})
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 435})
 	imgui.Begin("Device")
 	imgui.PushItemWidth(250.0)
 	imgui.InputTextV("Device EUI", &config.Device.DevEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevEUI, 16))
@@ -383,12 +388,6 @@ func beginDeviceForm() {
 		}
 		imgui.EndCombo()
 	}
-	if cDevice == nil {
-		if imgui.Button("Set device") {
-			setDevice()
-		}
-		imgui.SameLine()
-	}
 	if imgui.Button("Join") {
 		join()
 	}
@@ -399,6 +398,11 @@ func beginDeviceForm() {
 		}
 	}
 	beginReset()
+	imgui.Separator()
+	imgui.Text("Status")
+	imgui.Separator()
+	imgui.Text(fmt.Sprintf("DlFCnt: %d - UlFCnt: %d", cDevice.DlFcnt, cDevice.UlFcnt))
+	imgui.Text(fmt.Sprintf("DevNonce: %d - JoinNonce: %d", cDevice.DevNonce, cDevice.JoinNonce))
 	imgui.End()
 }
 
@@ -455,28 +459,49 @@ func setDevice() {
 		return
 	}
 
-	cDevice = &lds.Device{
-		DevEUI:      devEUI,
-		DevAddr:     devAddr,
-		NwkSEncKey:  nwkSEncKey,
-		SNwkSIntKey: sNwkSIntKey,
-		FNwkSIntKey: fNwkSIntKey,
-		AppSKey:     appSKey,
-		AppKey:      appKey,
-		NwkKey:      nwkKey,
-		JoinEUI:     joinEUI,
-		UlFcnt:      0,
-		DlFcnt:      0,
-		Major:       lorawan.Major(config.Device.Major),
-		MACVersion:  lorawan.MACVersion(config.Device.MACVersion),
+	if cDevice == nil {
+		cDevice = &lds.Device{
+			DevEUI:      devEUI,
+			DevAddr:     devAddr,
+			NwkSEncKey:  nwkSEncKey,
+			SNwkSIntKey: sNwkSIntKey,
+			FNwkSIntKey: fNwkSIntKey,
+			AppSKey:     appSKey,
+			AppKey:      appKey,
+			NwkKey:      nwkKey,
+			JoinEUI:     joinEUI,
+			Major:       lorawan.Major(config.Device.Major),
+			MACVersion:  lorawan.MACVersion(config.Device.MACVersion),
+		}
+	} else {
+		cDevice.DevEUI = devEUI
+		cDevice.DevAddr = devAddr
+		cDevice.NwkSEncKey = nwkSEncKey
+		cDevice.SNwkSIntKey = sNwkSIntKey
+		cDevice.FNwkSIntKey = fNwkSIntKey
+		cDevice.AppSKey = appSKey
+		cDevice.AppKey = appKey
+		cDevice.NwkKey = nwkKey
+		cDevice.JoinEUI = joinEUI
+		cDevice.Major = lorawan.Major(config.Device.Major)
+		cDevice.MACVersion = lorawan.MACVersion(config.Device.MACVersion)
 	}
 	cDevice.SetMarshaler(config.Device.Marshaler)
 	log.Infof("using marshaler: %s", config.Device.Marshaler)
+	//Get redis info.
+	if cDevice.GetInfo() {
+		config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
+		config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
+		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
+		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
+		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+	}
+	log.Infof("cDevice: %+v", cDevice)
 }
 
 func beginLoRaForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 595})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 320})
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 650})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 265})
 	imgui.Begin("LoRa Configuration")
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginCombo("Band", string(config.Band.Name)) {
@@ -523,9 +548,22 @@ func beginLoRaForm() {
 	imgui.End()
 }
 
+func beginControl() {
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 250})
+	imgui.Begin("Control")
+	imgui.Text("FCtrl")
+	imgui.Separator()
+	beginFCtrl()
+	imgui.Text("MAC Commands")
+	beginMACCommands()
+	imgui.Separator()
+	imgui.End()
+}
+
 func beginDataForm() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 560})
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 285})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 355})
 	imgui.Begin("Data")
 	imgui.Text("Raw data")
 	imgui.PushItemWidth(150.0)
@@ -536,7 +574,7 @@ func beginDataForm() {
 	imgui.SameLine()
 	imgui.Checkbox("Send every X seconds", &repeat)
 	if !running {
-		if imgui.Button("Send") {
+		if imgui.Button("Send data") {
 			run()
 		}
 	}
@@ -546,9 +584,6 @@ func beginDataForm() {
 		}
 	}
 
-	imgui.Separator()
-	imgui.Text("MAC Commands")
-	beginMACCommands()
 	imgui.Separator()
 
 	imgui.Text("Encoded data")
@@ -597,8 +632,8 @@ func beginDataForm() {
 }
 
 func beginOutput() {
-	imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 595})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 320})
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 650})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 265})
 	imgui.Begin("Output")
 	imgui.PushTextWrapPos()
 	imgui.PushStyleColor(imgui.StyleColorText, imgui.Vec4{X: 0.1, Y: 0.8, Z: 0.1, W: 0.5})
@@ -735,7 +770,7 @@ func beginReset() {
 		imgui.OpenPopup("Reset device")
 		resetDevice = false
 	}
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
+	imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 10})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Reset device") {
@@ -812,6 +847,7 @@ func main() {
 		beginMQTTForm()
 		beginDeviceForm()
 		beginLoRaForm()
+		beginControl()
 		beginDataForm()
 		beginOutput()
 		beginMenu()
@@ -838,9 +874,8 @@ func join() {
 		log.Errorln("mqtt client not connected")
 	}
 
-	if cDevice == nil {
-		setDevice()
-	}
+	//Always set device to get any changes to the configuration.
+	setDevice()
 
 	dataRate := &lds.DataRate{
 		Bandwidth:    config.DR.Bandwith,
@@ -890,9 +925,7 @@ func run() {
 		log.Errorln("mqtt client not connected")
 	}
 
-	if cDevice == nil {
-		setDevice()
-	}
+	setDevice()
 
 	dataRate := &lds.DataRate{
 		Bandwidth:    config.DR.Bandwith,
@@ -994,7 +1027,7 @@ func run() {
 		}
 
 		//Now send an uplink
-		ulfc, err := cDevice.Uplink(mqttClient, config.Device.MType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate, fOpts)
+		ulfc, err := cDevice.Uplink(mqttClient, config.Device.MType, 1, &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate, fOpts, fCtrl)
 		if err != nil {
 			log.Errorf("couldn't send uplink: %s", err)
 		} else {

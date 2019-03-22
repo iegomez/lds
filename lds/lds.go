@@ -185,7 +185,7 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 }
 
 //Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
-func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate, macCommands []*lorawan.MACCommand) (uint32, error) {
+func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
 
 	//Get uplink frame counter.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
@@ -193,7 +193,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 	if err == nil {
 		ufn, err := strconv.Atoi(uf)
 		if err == nil {
-			d.UlFcnt = uint32(ufn) + 1
+			d.UlFcnt = uint32(ufn)
 		}
 	}
 
@@ -210,13 +210,9 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		MACPayload: &lorawan.MACPayload{
 			FHDR: lorawan.FHDR{
 				DevAddr: d.DevAddr,
-				FCtrl: lorawan.FCtrl{
-					ADR:       false,
-					ADRACKReq: false,
-					ACK:       true,
-				},
-				FCnt:  d.UlFcnt,
-				FOpts: fOpts,
+				FCtrl:   fCtrl,
+				FCnt:    d.UlFcnt,
+				FOpts:   fOpts,
 			},
 			FPort:      &fPort,
 			FRMPayload: []lorawan.Payload{&lorawan.DataPayload{Bytes: payload}},
@@ -317,6 +313,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 	}
 
 	//Message was sent, UlFcnt can be set.
+	d.UlFcnt++
 	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 
 	return d.UlFcnt, nil
@@ -388,15 +385,16 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	if err == nil {
 		jn, err := strconv.Atoi(sjn)
 		if err == nil {
-			joinNonce = lorawan.JoinNonce(jn + 1)
+			joinNonce = lorawan.JoinNonce(jn)
 		}
 	}
 
 	if jap.JoinNonce <= joinNonce {
 		return "", errors.New("got lower or equal JoinNonce from server")
 	}
-
-	redisClient.Set(joinNonceKey, joinNonce, 0)
+	d.JoinNonce = jap.JoinNonce
+	log.Infof("setting join nonce: %d", d.JoinNonce)
+	redisClient.Set(joinNonceKey, uint16(jap.JoinNonce), 0)
 
 	d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 	if d.MACVersion == 0 {
@@ -416,6 +414,19 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	d.UlFcnt = 0
 	d.DlFcnt = 0
 
+	//Set devAddr and keys at redis so we can override those from a file when we were already joined.
+	redisFNwksSIntKey := fmt.Sprintf("ul-FNwksSIntKey-%s", d.DevEUI[:])
+	redisNwkSEncKey := fmt.Sprintf("ul-NwkSEncKey-%s", d.DevEUI[:])
+	redisSNwkSIntKey := fmt.Sprintf("ul-SNwkSIntKey-%s", d.DevEUI[:])
+	redisAppSKey := fmt.Sprintf("ul-AppSKey-%s", d.DevEUI[:])
+	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
+
+	redisClient.Set(redisFNwksSIntKey, KeyToHex(d.FNwkSIntKey), 0)
+	redisClient.Set(redisNwkSEncKey, KeyToHex(d.NwkSEncKey), 0)
+	redisClient.Set(redisSNwkSIntKey, KeyToHex(d.SNwkSIntKey), 0)
+	redisClient.Set(redisAppSKey, KeyToHex(d.AppSKey), 0)
+	redisClient.Set(redisDevAddr, DevAddressToHex(d.DevAddr), 0)
+
 	//Set frame counters to 0.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
 	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
@@ -428,7 +439,7 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 
 func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
 
-	//Get downlink frame counter and icnrease it by 1.
+	//Get downlink frame counter and increase it immediately.
 	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
 	df, err := redisClient.Get(dlFcntKey).Result()
 	if err == nil {
@@ -437,6 +448,9 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 			d.DlFcnt = uint32(dfn)
 		}
 	}
+	//Set downlink frame counter.
+	d.DlFcnt++
+	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 
 	ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
 	if err != nil {
@@ -484,20 +498,123 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 
 	log.Infof("dlFcnt: %d / received Fcnt: %d", d.DlFcnt, macPayload.FHDR.FCnt)
 
-	//Set downlink frame counter.
-	d.DlFcnt++
-	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 	return string(phyJSON), nil
 }
 
 //Reset clears all data from redis for a given device.
 func (d *Device) Reset() error {
 	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
-	ulFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
 	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
 	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
-	_, err := redisClient.Del(dlFcntKey, ulFcntKey, joinNonceKey, devNonceKey).Result()
+	redisFNwksSIntKey := fmt.Sprintf("ul-FNwksSIntKey-%s", d.DevEUI[:])
+	redisNwkSEncKey := fmt.Sprintf("ul-NwkSEncKey-%s", d.DevEUI[:])
+	redisSNwkSIntKey := fmt.Sprintf("ul-SNwkSIntKey-%s", d.DevEUI[:])
+	redisAppSKey := fmt.Sprintf("ul-AppSKey-%s", d.DevEUI[:])
+	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
+	_, err := redisClient.Del(dlFcntKey, ulFcntKey, joinNonceKey, devNonceKey, redisFNwksSIntKey, redisNwkSEncKey, redisSNwkSIntKey, redisAppSKey, redisDevAddr).Result()
 	return err
+}
+
+//GetInfo retrieves device info stored in Redis.
+func (d *Device) GetInfo() bool {
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	uf, err := redisClient.Get(ulFcntKey).Result()
+	if err == nil {
+		ufn, err := strconv.Atoi(uf)
+		if err == nil {
+			d.UlFcnt = uint32(ufn)
+		} else {
+			log.Errorf("redis convert error: %s", err)
+		}
+	} else {
+		log.Errorf("redis get key error: %s", err)
+	}
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	df, err := redisClient.Get(dlFcntKey).Result()
+	if err == nil {
+		dfn, err := strconv.Atoi(df)
+		if err == nil {
+			d.DlFcnt = uint32(dfn)
+		} else {
+			log.Errorf("redis convert error: %s", err)
+		}
+	} else {
+		log.Errorf("redis get key error: %s", err)
+	}
+	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
+	sjn, err := redisClient.Get(joinNonceKey).Result()
+	if err == nil {
+		jn, err := strconv.Atoi(sjn)
+		if err == nil {
+			d.JoinNonce = lorawan.JoinNonce(jn)
+		} else {
+			log.Errorf("redis convert error: %s", err)
+		}
+	} else {
+		log.Errorf("redis get key error: %s", err)
+	}
+	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
+	sdn, err := redisClient.Get(devNonceKey).Result()
+	if err == nil {
+		dn, err := strconv.Atoi(sdn)
+		if err == nil {
+			d.DevNonce = lorawan.DevNonce(dn)
+		} else {
+			log.Errorf("redis convert error: %s", err)
+		}
+	} else {
+		log.Errorf("redis get key error: %s", err)
+	}
+	//Check for dev addr and keys in case we were already joined.
+	//Set devAddr and keys at redis so we can override those from a file when we were already joined.
+	redisFNwksSIntKey := fmt.Sprintf("ul-FNwksSIntKey-%s", d.DevEUI[:])
+	redisNwkSEncKey := fmt.Sprintf("ul-NwkSEncKey-%s", d.DevEUI[:])
+	redisSNwkSIntKey := fmt.Sprintf("ul-SNwkSIntKey-%s", d.DevEUI[:])
+	redisAppSKey := fmt.Sprintf("ul-AppSKey-%s", d.DevEUI[:])
+	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
+
+	fNwksSIntKey, err := redisClient.Get(redisFNwksSIntKey).Result()
+	if err != nil {
+		return false
+	}
+	nwkSEncKey, err := redisClient.Get(redisNwkSEncKey).Result()
+	if err != nil {
+		return false
+	}
+	sNwkSIntKey, err := redisClient.Get(redisSNwkSIntKey).Result()
+	if err != nil {
+		return false
+	}
+	appSKey, err := redisClient.Get(redisAppSKey).Result()
+	if err != nil {
+		return false
+	}
+	devAddr, err := redisClient.Get(redisDevAddr).Result()
+	if err != nil {
+		return false
+	}
+	d.FNwkSIntKey, err = HexToKey(fNwksSIntKey)
+	if err != nil {
+		return false
+	}
+	d.NwkSEncKey, err = HexToKey(nwkSEncKey)
+	if err != nil {
+		return false
+	}
+	d.SNwkSIntKey, err = HexToKey(sNwkSIntKey)
+	if err != nil {
+		return false
+	}
+	d.AppSKey, err = HexToKey(appSKey)
+	if err != nil {
+		return false
+	}
+	d.DevAddr, err = HexToDevAddress(devAddr)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 /////////////////////////
