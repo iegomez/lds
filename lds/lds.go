@@ -354,27 +354,47 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 		log.Errorf("can't decrypt join accept: %s", err)
 	}
 
-	ok, err := phy.ValidateDownlinkJoinMIC(lorawan.JoinRequestType, d.DevEUI, d.DevNonce, d.NwkKey)
-	if err != nil {
-		log.Error("failed at join mic function")
-		return "", err
-	}
-	if !ok {
-		return "", errors.New("join invalid mic")
+	jap := phy.MACPayload.(*lorawan.JoinAcceptPayload)
+
+	if jap.DLSettings.OptNeg {
+		jsIntKey, err := getJSIntKey(d.NwkKey, d.DevEUI)
+		if err != nil {
+			return "", err
+		}
+		ok, err := phy.ValidateDownlinkJoinMIC(0xFF, d.JoinEUI, d.DevNonce, jsIntKey)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", errors.New("validate downlink join mic not ok")
+		}
+	} else {
+		ok, err := phy.ValidateDownlinkJoinMIC(0xFF, d.JoinEUI, d.DevNonce, d.NwkKey)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", errors.New("validate downlink join mic not ok")
+		}
 	}
 
-	if err := phy.DecryptFOpts(d.NwkKey); err != nil {
-		log.Error("failed at opts decryption")
-		return "", err
-	}
+	/*if d.MACVersion == lorawan.LoRaWAN1_0 {
+		if err := phy.DecodeFOptsToMACCommands(); err != nil {
+			log.Error("failed at downlink opts to mac commands decoding")
+			return "", err
+		}
+	} else {
+		if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
+			log.Error("failed at downlink opts decryption")
+			return "", err
+		}
+	}*/
 
 	phyJSON, err := phy.MarshalJSON()
 	if err != nil {
 		log.Error("failed at json marshal")
 		return "", err
 	}
-
-	jap := phy.MACPayload.(*lorawan.JoinAcceptPayload)
 
 	log.Debugf("join accept payload: %+v", jap)
 
@@ -396,11 +416,12 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	log.Infof("setting join nonce: %d", d.JoinNonce)
 	redisClient.Set(joinNonceKey, uint16(jap.JoinNonce), 0)
 
-	d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 	if d.MACVersion == 0 {
+		d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 		d.NwkSEncKey = d.FNwkSIntKey
 		d.SNwkSIntKey = d.FNwkSIntKey
 	} else {
+		d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 		d.NwkSEncKey, err = getNwkSEncKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 		d.SNwkSIntKey, err = getSNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 	}
@@ -409,6 +430,7 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	} else {
 		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 	}
+
 	d.DevAddr = jap.DevAddr
 	d.Joined = true
 	d.UlFcnt = 0

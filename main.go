@@ -405,8 +405,10 @@ func beginDeviceForm() {
 	imgui.Separator()
 	imgui.Text("Status")
 	imgui.Separator()
-	imgui.Text(fmt.Sprintf("DlFCnt: %d - UlFCnt: %d", cDevice.DlFcnt, cDevice.UlFcnt))
-	imgui.Text(fmt.Sprintf("DevNonce: %d - JoinNonce: %d", cDevice.DevNonce, cDevice.JoinNonce))
+	if cDevice != nil {
+		imgui.Text(fmt.Sprintf("DlFCnt: %d - UlFCnt: %d", cDevice.DlFcnt, cDevice.UlFcnt))
+		imgui.Text(fmt.Sprintf("DevNonce: %d - JoinNonce: %d", cDevice.DevNonce, cDevice.JoinNonce))
+	}
 	imgui.End()
 }
 
