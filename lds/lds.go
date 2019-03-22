@@ -378,18 +378,6 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 		}
 	}
 
-	/*if d.MACVersion == lorawan.LoRaWAN1_0 {
-		if err := phy.DecodeFOptsToMACCommands(); err != nil {
-			log.Error("failed at downlink opts to mac commands decoding")
-			return "", err
-		}
-	} else {
-		if err := phy.DecryptFOpts(d.NwkSEncKey); err != nil {
-			log.Error("failed at downlink opts decryption")
-			return "", err
-		}
-	}*/
-
 	phyJSON, err := phy.MarshalJSON()
 	if err != nil {
 		log.Error("failed at json marshal")
@@ -416,19 +404,18 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	log.Infof("setting join nonce: %d", d.JoinNonce)
 	redisClient.Set(joinNonceKey, uint16(jap.JoinNonce), 0)
 
+	d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.JoinEUI, jap.JoinNonce, d.DevNonce)
 	if d.MACVersion == 0 {
-		d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
 		d.NwkSEncKey = d.FNwkSIntKey
 		d.SNwkSIntKey = d.FNwkSIntKey
 	} else {
-		d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
-		d.NwkSEncKey, err = getNwkSEncKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
-		d.SNwkSIntKey, err = getSNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+		d.NwkSEncKey, err = getNwkSEncKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.JoinEUI, jap.JoinNonce, d.DevNonce)
+		d.SNwkSIntKey, err = getSNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.JoinEUI, jap.JoinNonce, d.DevNonce)
 	}
 	if jap.DLSettings.OptNeg {
-		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.AppKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.AppKey, jap.HomeNetID, d.JoinEUI, jap.JoinNonce, d.DevNonce)
 	} else {
-		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.DevEUI, jap.JoinNonce, d.DevNonce)
+		d.AppSKey, err = getAppSKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.JoinEUI, jap.JoinNonce, d.DevNonce)
 	}
 
 	d.DevAddr = jap.DevAddr
@@ -478,7 +465,7 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 	d.DlFcnt++
 	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 
-	ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
+	ok, err := phy.ValidateDownlinkDataMIC(mv, d.DlFcnt-1, d.NwkSEncKey)
 	if err != nil {
 		log.Error("failed at downlink mic function")
 		return "", err
