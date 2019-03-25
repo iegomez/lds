@@ -56,25 +56,26 @@ type DataRate struct {
 
 //Device holds device keys, addr, eui and fcnt.
 type Device struct {
-	DevEUI      lorawan.EUI64      `json:"devEUI"`
-	DevAddr     lorawan.DevAddr    `json:"devAddr"`
-	NwkSEncKey  lorawan.AES128Key  `json:"nwkSEncKey"`
-	SNwkSIntKey lorawan.AES128Key  `json:"sNwkSIntKey"`
-	FNwkSIntKey lorawan.AES128Key  `json:"fNwksSIntKey"`
-	AppSKey     lorawan.AES128Key  `json:"appSKey"`
-	NwkKey      [16]byte           `json:"nwkKey"`
-	AppKey      [16]byte           `json:"appKey"`
-	JoinEUI     lorawan.EUI64      `json:"joinEUI"`
-	Major       lorawan.Major      `json:"major"`
-	MACVersion  lorawan.MACVersion `json:"macVersion"`
-	UlFcnt      uint32             `json:"ulFcnt"`
-	DlFcnt      uint32             `json:"dlFcnt"`
-	marshal     func(msg proto.Message) ([]byte, error)
-	unmarshal   func(b []byte, msg proto.Message) error
-	Profile     string            `json:"profile"`
-	Joined      bool              `json:"joined"`
-	DevNonce    lorawan.DevNonce  `json:"devNonce"`
-	JoinNonce   lorawan.JoinNonce `json:"joinNonce"`
+	DevEUI        lorawan.EUI64      `json:"devEUI"`
+	DevAddr       lorawan.DevAddr    `json:"devAddr"`
+	NwkSEncKey    lorawan.AES128Key  `json:"nwkSEncKey"`
+	SNwkSIntKey   lorawan.AES128Key  `json:"sNwkSIntKey"`
+	FNwkSIntKey   lorawan.AES128Key  `json:"fNwksSIntKey"`
+	AppSKey       lorawan.AES128Key  `json:"appSKey"`
+	NwkKey        [16]byte           `json:"nwkKey"`
+	AppKey        [16]byte           `json:"appKey"`
+	JoinEUI       lorawan.EUI64      `json:"joinEUI"`
+	Major         lorawan.Major      `json:"major"`
+	MACVersion    lorawan.MACVersion `json:"macVersion"`
+	UlFcnt        uint32             `json:"ulFcnt"`
+	DlFcnt        uint32             `json:"dlFcnt"`
+	marshal       func(msg proto.Message) ([]byte, error)
+	unmarshal     func(b []byte, msg proto.Message) error
+	Profile       string            `json:"profile"`
+	Joined        bool              `json:"joined"`
+	DevNonce      lorawan.DevNonce  `json:"devNonce"`
+	JoinNonce     lorawan.JoinNonce `json:"joinNonce"`
+	SkipFCntCheck bool              `toml:"skip_fcnt_check"`
 }
 
 var redisClient *redis.Client
@@ -465,13 +466,27 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 	d.DlFcnt++
 	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 
-	ok, err := phy.ValidateDownlinkDataMIC(mv, d.DlFcnt-1, d.NwkSEncKey)
-	if err != nil {
-		log.Error("failed at downlink mic function")
-		return "", err
-	}
-	if !ok {
-		return "", errors.New("downlink error: invalid mic")
+	//Validate MIC if frame counter validation is not disabled.
+	if !d.SkipFCntCheck {
+		if d.MACVersion == lorawan.LoRaWAN1_0 {
+			ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
+			if err != nil {
+				log.Error("failed at downlink mic function")
+				return "", err
+			}
+			if !ok {
+				return "", errors.New("downlink error: invalid mic")
+			}
+		} else {
+			ok, err := phy.ValidateDownlinkDataMIC(mv, d.UlFcnt-1, d.NwkSEncKey)
+			if err != nil {
+				log.Error("failed at downlink mic function")
+				return "", err
+			}
+			if !ok {
+				return "", errors.New("downlink error: invalid mic")
+			}
+		}
 	}
 
 	if err := phy.DecryptFRMPayload(d.AppSKey); err != nil {
@@ -564,6 +579,7 @@ func (d *Device) GetInfo() bool {
 			d.UlFcnt = uint32(ufn)
 		} else {
 			log.Errorf("redis convert error: %s", err)
+			d.UlFcnt = 0
 		}
 	} else {
 		log.Errorf("redis get key error: %s", err)
@@ -576,6 +592,7 @@ func (d *Device) GetInfo() bool {
 			d.DlFcnt = uint32(dfn)
 		} else {
 			log.Errorf("redis convert error: %s", err)
+			d.DlFcnt = 0
 		}
 	} else {
 		log.Errorf("redis get key error: %s", err)
@@ -588,6 +605,7 @@ func (d *Device) GetInfo() bool {
 			d.JoinNonce = lorawan.JoinNonce(jn)
 		} else {
 			log.Errorf("redis convert error: %s", err)
+			d.JoinNonce = 0
 		}
 	} else {
 		log.Errorf("redis get key error: %s", err)
@@ -600,6 +618,7 @@ func (d *Device) GetInfo() bool {
 			d.DevNonce = lorawan.DevNonce(dn)
 		} else {
 			log.Errorf("redis convert error: %s", err)
+			d.DevNonce = 0
 		}
 	} else {
 		log.Errorf("redis get key error: %s", err)

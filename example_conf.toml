@@ -5,26 +5,27 @@ log_level = "info"
   user = "username"
   password = "password"
 
+[gateway]
+  mac = "b827ebfffe9448d0"
+
 [band]
   name = "AU_915_928"
 
 [Device]
-  eui = "0000000000000000"
-  address = "00c6dbe5"
-  network_session_encription_key = "49a78056495bd0b67079ce505624427d"
-  serving_network_session_integrity_key = "49a78056495bd0b67079ce505624427d"
-  forwarding_network_session_integrity_key = "49a78056495bd0b67079ce505624427d"
-  application_session_key = "d147f40bdb23b1709cdd7aa550ac8267"
-  marshaler = "json"
-  nwk_key = "00000000000000010000000000000001"
-  app_key = "00000000000000010000000000000001"
-  join_eui = "0000000000000000"
-  mac_version = 0
-  profile = "OTAA"
-  joined = false
-
-[gateway]
-  mac = "b827ebfffe9448d0"
+eui="0000000000000000"
+address="000f6e3b"
+network_session_encription_key="dc5351f56794ed3ac17c382927192858"
+serving_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
+forwarding_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
+application_session_key="7b14565ba0e30d6ced804393fd6a0dd5"
+marshaler="json"
+nwk_key="00000000000000010000000000000001"
+app_key="00000000000000010000000000000001"
+join_eui="0000000000000002"
+mac_version=1
+profile="OTAA"
+joined=false
+skip_fcnt_check=true
 
 [data_rate]
   bandwith = 125
@@ -40,12 +41,6 @@ log_level = "info"
   lora_snr = 7.0
   rf_chain = 1
   rssi = -57
-  ChannelS = "0"
-  CrcStatusS = "1"
-  FrequencyS = "916800000"
-  LoRASNRS = "7"
-  RfChainS = "1"
-  RssiS = "-57"
 
 [raw_payload]
   payload = "ff00"
@@ -58,10 +53,6 @@ log_level = "info"
   min_value = 0.0
   is_float = false
   num_bytes = 1
-  ValueS = "5"
-  MinValueS = "0"
-  MaxValueS = "255"
-  NumBytesS = "1"
 
 [[encoded_type]]
   name = "Batería"
@@ -70,10 +61,6 @@ log_level = "info"
   min_value = 0.0
   is_float = false
   num_bytes = 1
-  ValueS = "80"
-  MinValueS = "0"
-  MaxValueS = "255"
-  NumBytesS = "1"
 
 [[encoded_type]]
   name = "Luz"
@@ -82,34 +69,6 @@ log_level = "info"
   min_value = -0.0
   is_float = false
   num_bytes = 1
-  ValueS = "50"
-  MinValueS = "-0"
-  MaxValueS = "255"
-  NumBytesS = "1"
-
-[[encoded_type]]
-  name = "Latitude"
-  value = -33.4348474
-  max_value = 90.0
-  min_value = -90.0
-  is_float = true
-  num_bytes = 4
-  ValueS = "-33.4348474"
-  MinValueS = "-90"
-  MaxValueS = "90"
-  NumBytesS = "4"
-
-[[encoded_type]]
-  name = "Longitude"
-  value = -70.6157308
-  max_value = 180.0
-  min_value = -180.0
-  is_float = true
-  num_bytes = 4
-  ValueS = "-70.6157308"
-  MinValueS = "-180"
-  MaxValueS = "180"
-  NumBytesS = "4"
 
 [redis]
   addr = "localhost:6379"

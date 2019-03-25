@@ -41,21 +41,22 @@ type band struct {
 }
 
 type device struct {
-	DevEUI      string `toml:"eui"`
-	DevAddress  string `toml:"address"`
-	NwkSEncKey  string `toml:"network_session_encription_key"`
-	SNwkSIntKey string `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
-	FNwkSIntKey string `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
-	AppSKey     string `toml:"application_session_key"`
-	Marshaler   string `toml:"marshaler"`
-	NwkKey      string `toml:"nwk_key"`  //Network key, used to be called application key for Lorawan 1.0
-	AppKey      string `toml:"app_key"`  //Application key, for Lorawan 1.1
-	JoinEUI     string `toml:"join_eui"` //JoinEUI for 1.1. (AppEUI on 1.0)
-	Major       lorawan.Major
-	MACVersion  lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
-	MType       lorawan.MType
-	Profile     string `toml:"profile"`
-	Joined      bool   `toml:"joined"`
+	DevEUI        string             `toml:"eui"`
+	DevAddress    string             `toml:"address"`
+	NwkSEncKey    string             `toml:"network_session_encription_key"`
+	SNwkSIntKey   string             `toml:"serving_network_session_integrity_key"`    //For Lorawan 1.0 this is the same as the NwkSEncKey
+	FNwkSIntKey   string             `toml:"forwarding_network_session_integrity_key"` //For Lorawan 1.0 this is the same as the NwkSEncKey
+	AppSKey       string             `toml:"application_session_key"`
+	Marshaler     string             `toml:"marshaler"`
+	NwkKey        string             `toml:"nwk_key"`  //Network key, used to be called application key for Lorawan 1.0
+	AppKey        string             `toml:"app_key"`  //Application key, for Lorawan 1.1
+	JoinEUI       string             `toml:"join_eui"` //JoinEUI for 1.1. (AppEUI on 1.0)
+	Major         lorawan.Major      `toml:"-"`
+	MACVersion    lorawan.MACVersion `toml:"mac_version"` //Lorawan MAC version
+	MType         lorawan.MType      `toml:"-"`
+	Profile       string             `toml:"profile"`
+	Joined        bool               `toml:"joined"`
+	SkipFCntCheck bool               `toml:"skip_fcnt_check"`
 }
 
 type dataRate struct {
@@ -74,12 +75,12 @@ type rxInfo struct {
 	RfChain   int     `toml:"rf_chain"`
 	Rssi      int     `toml:"rssi"`
 	//String representations for numeric values so that we can manage them with input texts.
-	ChannelS   string
-	CrcStatusS string
-	FrequencyS string
-	LoRASNRS   string
-	RfChainS   string
-	RssiS      string
+	ChannelS   string `toml:"-"`
+	CrcStatusS string `toml:"-"`
+	FrequencyS string `toml:"-"`
+	LoRASNRS   string `toml:"-"`
+	RfChainS   string `toml:"-"`
+	RssiS      string `toml:"-"`
 }
 
 type encodedType struct {
@@ -90,10 +91,10 @@ type encodedType struct {
 	IsFloat  bool    `toml:"is_float"`
 	NumBytes int     `toml:"num_bytes"`
 	//String representations.
-	ValueS    string
-	MinValueS string
-	MaxValueS string
-	NumBytesS string
+	ValueS    string `toml:"-"`
+	MinValueS string `toml:"-"`
+	MaxValueS string `toml:"-"`
+	NumBytesS string `toml:"-"`
 }
 
 //rawPayload holds optional raw bytes payload (hex encoded).
@@ -392,6 +393,7 @@ func beginDeviceForm() {
 		}
 		imgui.EndCombo()
 	}
+	imgui.Checkbox("Disable frame counter validation", &config.Device.SkipFCntCheck)
 	if imgui.Button("Join") {
 		join()
 	}
@@ -402,8 +404,6 @@ func beginDeviceForm() {
 		}
 	}
 	beginReset()
-	imgui.Separator()
-	imgui.Text("Status")
 	imgui.Separator()
 	if cDevice != nil {
 		imgui.Text(fmt.Sprintf("DlFCnt: %d - UlFCnt: %d", cDevice.DlFcnt, cDevice.UlFcnt))
@@ -467,17 +467,18 @@ func setDevice() {
 
 	if cDevice == nil {
 		cDevice = &lds.Device{
-			DevEUI:      devEUI,
-			DevAddr:     devAddr,
-			NwkSEncKey:  nwkSEncKey,
-			SNwkSIntKey: sNwkSIntKey,
-			FNwkSIntKey: fNwkSIntKey,
-			AppSKey:     appSKey,
-			AppKey:      appKey,
-			NwkKey:      nwkKey,
-			JoinEUI:     joinEUI,
-			Major:       lorawan.Major(config.Device.Major),
-			MACVersion:  lorawan.MACVersion(config.Device.MACVersion),
+			DevEUI:        devEUI,
+			DevAddr:       devAddr,
+			NwkSEncKey:    nwkSEncKey,
+			SNwkSIntKey:   sNwkSIntKey,
+			FNwkSIntKey:   fNwkSIntKey,
+			AppSKey:       appSKey,
+			AppKey:        appKey,
+			NwkKey:        nwkKey,
+			JoinEUI:       joinEUI,
+			Major:         lorawan.Major(config.Device.Major),
+			MACVersion:    lorawan.MACVersion(config.Device.MACVersion),
+			SkipFCntCheck: config.Device.SkipFCntCheck,
 		}
 	} else {
 		cDevice.DevEUI = devEUI
@@ -491,6 +492,7 @@ func setDevice() {
 		cDevice.JoinEUI = joinEUI
 		cDevice.Major = lorawan.Major(config.Device.Major)
 		cDevice.MACVersion = lorawan.MACVersion(config.Device.MACVersion)
+		cDevice.SkipFCntCheck = config.Device.SkipFCntCheck
 	}
 	cDevice.SetMarshaler(config.Device.Marshaler)
 	//Get redis info.
@@ -500,6 +502,8 @@ func setDevice() {
 		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
 		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
 		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+	} else {
+		cDevice.Reset()
 	}
 }
 
@@ -653,7 +657,7 @@ func beginMenu() {
 			if imgui.MenuItem("Open") {
 				openFile = true
 				var err error
-				files, err = ioutil.ReadDir("./")
+				files, err = ioutil.ReadDir("./confs/")
 				if err != nil {
 					log.Errorf("couldn't list files: %s", err)
 				}
@@ -717,7 +721,7 @@ func beginOpenFile() {
 	if imgui.BeginPopupModal("Select file") {
 		if imgui.BeginComboV("Select", *confFile, 0) {
 			for _, f := range files {
-				filename := f.Name()
+				filename := fmt.Sprintf("confs/%s", f.Name())
 				if !strings.Contains(filename, ".toml") {
 					continue
 				}
@@ -761,7 +765,7 @@ func beginSaveFile() {
 		imgui.SameLine()
 		if imgui.Button("Save") {
 			//Import file.
-			exportConf(saveFilename)
+			exportConf(fmt.Sprintf("confs/%s", saveFilename))
 			imgui.CloseCurrentPopup()
 			//Close popup.
 		}
@@ -780,7 +784,7 @@ func beginReset() {
 	if imgui.BeginPopupModal("Reset device") {
 
 		imgui.PushTextWrapPos()
-		imgui.Text("This will delete saved devNonce, joinNonce, DlFcnt and UlFcnt. Are you sure you want to proceed?")
+		imgui.Text("This will delete saved devNonce, joinNonce, downlink and uplink frame counters, device address and device keys. Are you sure you want to proceed?")
 		imgui.Separator()
 		if imgui.Button("Cancel") {
 			imgui.CloseCurrentPopup()

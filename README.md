@@ -5,8 +5,13 @@ It supports all bands and configurations LoRaWAN versions 1.0 and 1.1.
 
 It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
 
-**Important**: This is a work in progress. LoRaWAN 1.1 downlinks are broken right now (need to fix MIC validation), there may be other bugs too, the `cli` mode needs to be rewritten, etc.
+**Important**: This is a work in progress. LoRaWAN 1.1 downlinks are broken right now (need to fix MIC validation, only works when disabling frame counter validation), there may be other bugs too, the `cli` mode needs to be rewritten, etc.
 
+![](images/new-gui.png?raw=true)
+
+### Requirements
+
+As mentioned, this program needs OpenGL 3.2 to be installed. Also, it uses Redis to store device addres and keys, frame counters and nonces in OTAA mode.
 
 ### Conf
 
@@ -14,83 +19,86 @@ The GUI allows to modify all options, but they may also be seeded with a conf fi
 
 ```toml
 #Configuration.
-log_level="info"
-
-[redis]
-addr="localhost:6379"
-password=""
-db=10
+log_level = "info"
 
 [mqtt]
-server="tcp://broker-host:1883"
-user="mqtt_user"
-password="mqtt_password"
+  server = "tcp://localhost:1883"
+  user = "username"
+  password = "password"
 
 [gateway]
-mac="b827ebfffe9448d0"
+  mac = "b827ebfffe9448d0"
 
 [band]
-name="AU_915_928"
+  name = "AU_915_928"
 
-[device]
-eui="0000000000000003"
-address="019b58cf"
-network_session_encription_key="13ef56f3089a68252cd7d873fcecf009"
-serving_network_session_integrity_key="13ef56f3089a68252cd7d873fcecf009"
-forwarding_network_session_integrity_key="13ef56f3089a68252cd7d873fcecf009"
-application_session_key="9d12b80004300f957c154da245c68029"
-marshaler="json"
-nwk_key="00000000000000010000000000000001"
-app_key="00000000000000010000000000000001"
-join_eui="0000000000000003"
-major=0
-mac_version=1
-mtype=2
-profile="OTAA"
-joined=false
+[Device]
+	eui="0000000000000000"
+	address="000f6e3b"
+	network_session_encription_key="dc5351f56794ed3ac17c382927192858"
+	serving_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
+	forwarding_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
+	application_session_key="7b14565ba0e30d6ced804393fd6a0dd5"
+	marshaler="json"
+	nwk_key="00000000000000010000000000000001"
+	app_key="00000000000000010000000000000001"
+	join_eui="0000000000000002"
+	mac_version=1
+	profile="OTAA"
+	joined=false
+	skip_fcnt_check=true
 
 [data_rate]
-bandwith=125
-spread_factor=10
-bit_rate=0
+  bandwith = 125
+  spread_factor = 10
+  bit_rate = 0
+  BitRateS = "0"
 
 [rx_info]
-channel=0
-code_rate="4/5"
-crc_status=1
-frequency=916800000
-lora_snr=7.0
-rf_chain=1
-rssi=-57
+  channel = 0
+  code_rate = "4/5"
+  crc_status = 1
+  frequency = 916800000
+  lora_snr = 7.0
+  rf_chain = 1
+  rssi = -57
 
 [raw_payload]
-payload="ff00"
-use_raw=false
+  payload = "ff00"
+  use_raw = false
 
 [[encoded_type]]
-name="Flags"
-is_float=false
-num_bytes=1
-value=5.0
-max_value=255.0
-min_value=0.0
+  name = "Flags"
+  value = 5.0
+  max_value = 255.0
+  min_value = 0.0
+  is_float = false
+  num_bytes = 1
 
 [[encoded_type]]
-name="Batería"
-is_float=false
-num_bytes=1
-value=80.0
-max_value=255.0
-min_value=0.0
+  name = "Batería"
+  value = 80.0
+  max_value = 255.0
+  min_value = 0.0
+  is_float = false
+  num_bytes = 1
 
 [[encoded_type]]
-name="Luz"
-is_float=false
-num_bytes=1
-value=50.0
-max_value=255.0
-min_value=-0.0
+  name = "Luz"
+  value = 50.0
+  max_value = 255.0
+  min_value = -0.0
+  is_float = false
+  num_bytes = 1
+
+[redis]
+  addr = "localhost:6379"
+  password = ""
+  db = 10
 ```
+You may also import files located at `working-dir/confs` and save to the same directory.
+
+When OTAA is set and the device is joined, uponinitialization the program will try to load keys and relevant data from Redis, overriding keys from the file.
 
 ### Data
 
@@ -135,9 +143,7 @@ func GenerateInt(originalInt, numBytes int32) []byte {
 }
 ```
 
-Values may be added using the `Add encoded type` button and setting the options:
-
-![](images/new-gui.png?raw=true)
+Values may be added using the `Add encoded type` button and setting the options.
 
 #### MAC Commands
 
