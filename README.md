@@ -5,7 +5,7 @@ It supports all bands and configurations LoRaWAN versions 1.0 and 1.1.
 
 It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
 
-**Important**: This is a work in progress. LoRaWAN 1.1 downlinks are broken right now (need to fix MIC validation, only works when disabling frame counter validation), there may be other bugs too, the `cli` mode needs to be rewritten, etc.
+**Important**: This is a work in progress: the `cli` mode needs to be rewritten (it doesn't work right now) and there may be bugs in the `gui` version. Please report any by filing and issue.
 
 ![](images/new-gui.png?raw=true)
 

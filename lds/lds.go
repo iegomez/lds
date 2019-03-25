@@ -468,24 +468,13 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 
 	//Validate MIC if frame counter validation is not disabled.
 	if !d.SkipFCntCheck {
-		if d.MACVersion == lorawan.LoRaWAN1_0 {
-			ok, err := phy.ValidateDownlinkDataMIC(mv, 0, d.NwkSEncKey)
-			if err != nil {
-				log.Error("failed at downlink mic function")
-				return "", err
-			}
-			if !ok {
-				return "", errors.New("downlink error: invalid mic")
-			}
-		} else {
-			ok, err := phy.ValidateDownlinkDataMIC(mv, d.UlFcnt-1, d.NwkSEncKey)
-			if err != nil {
-				log.Error("failed at downlink mic function")
-				return "", err
-			}
-			if !ok {
-				return "", errors.New("downlink error: invalid mic")
-			}
+		ok, err := phy.ValidateDownlinkDataMIC(mv, d.UlFcnt-1, d.SNwkSIntKey)
+		if err != nil {
+			log.Error("failed at downlink mic function")
+			return "", err
+		}
+		if !ok {
+			return "", errors.New("downlink error: invalid mic")
 		}
 	}
 
