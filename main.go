@@ -157,7 +157,7 @@ type outputWriter struct {
 func (o *outputWriter) Write(p []byte) (n int, err error) {
 	o.Counter++
 	o.Text = fmt.Sprintf("%s%05d  %s", o.Text, o.Counter, string(p))
-	o.History += o.Text
+	o.History = fmt.Sprintf("%s%s", o.History, string(p))
 	return len(p), nil
 }
 
@@ -174,6 +174,8 @@ var saveFilename string
 var resetDevice bool
 var windowWidth = 1200
 var windowHeight = 920
+var dumpHistory bool
+var historyFile string
 
 func importConf() {
 
@@ -263,12 +265,16 @@ func exportConf(filename string) {
 
 }
 
-func dumpConsole() {
-	/*f, err := os.Create(fmt.Sprintf("lds-%d.log", time.Now().UnixNano()))
+func writeHistory() {
+	f, err := os.Create(fmt.Sprintf("lds-%d.log", time.Now().UnixNano()))
 	if err != nil {
 		log.Errorf("export error: %s", err)
 		return
-	}*/
+	}
+	defer f.Close()
+	n, err := f.Write([]byte(ow.History))
+	f.Sync()
+	log.Infof("wrote %d bytes to %s", n, f.Name())
 }
 
 func setLevel(level log.Level) {
@@ -682,6 +688,10 @@ func beginMenu() {
 				}
 			}
 
+			if imgui.MenuItem("Dump history") {
+				writeHistory()
+			}
+
 			imgui.EndMenu()
 		}
 		if imgui.BeginMenu("Log level") {
@@ -696,12 +706,6 @@ func beginMenu() {
 			}
 			if imgui.MenuItem("Error") {
 				setLevel(log.ErrorLevel)
-			}
-			if imgui.MenuItem("Copy") {
-				err := clipboard.WriteAll(ow.Text)
-				if err != nil {
-					log.Errorf("copy error: %s", err)
-				}
 			}
 
 			imgui.EndMenu()
