@@ -31,7 +31,6 @@ skip_fcnt_check=true
   bandwith = 125
   spread_factor = 10
   bit_rate = 0
-  BitRateS = "0"
 
 [rx_info]
   channel = 0
@@ -45,6 +44,11 @@ skip_fcnt_check=true
 [raw_payload]
   payload = "ff00"
   use_raw = false
+  script = "\n// Encode encodes the given object into an array of bytes.\n//  - fPort contains the LoRaWAN fPort number\n//  - obj is an object, e.g. {\"temperature\": 22.5}\n// The function must return an array of bytes, e.g. [225, 230, 255, 0]\nfunction Encode(fPort, obj) {\n\treturn [\n      obj[\"Flags\"],\n      obj[\"Battery\"],\n      obj[\"Light\"],\n    ];\n}\n"
+  use_encoder = true
+  max_exec_time = 500
+  js_object = "{\n \"Flags\": 0,\n \"Battery\": 65,\n \"Light\": 54\n}"
+  fport = 2
 
 [[encoded_type]]
   name = "Flags"

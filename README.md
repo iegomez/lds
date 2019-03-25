@@ -52,7 +52,6 @@ log_level = "info"
   bandwith = 125
   spread_factor = 10
   bit_rate = 0
-  BitRateS = "0"
 
 [rx_info]
   channel = 0
@@ -66,6 +65,11 @@ log_level = "info"
 [raw_payload]
   payload = "ff00"
   use_raw = false
+	script = "\n// Encode encodes the given object into an array of bytes.\n//  - fPort contains the LoRaWAN fPort number\n//  - obj is an object, e.g. {\"temperature\": 22.5}\n// The function must return an array of bytes, e.g. [225, 230, 255, 0]\nfunction Encode(fPort, obj) {\n\treturn [\n      obj[\"Flags\"],\n      obj[\"Battery\"],\n      obj[\"Light\"],\n    ];\n}\n"
+  use_encoder = true
+  max_exec_time = 500
+  js_object = "{\n \"Flags\": 0,\n \"Battery\": 65,\n \"Light\": 54\n}"
+  fport = 2
 
 [[encoded_type]]
   name = "Flags"
@@ -102,7 +106,7 @@ When OTAA is set and the device is joined, uponinitialization the program will t
 
 ### Data
 
-The data to be sent may be presented as a hex string representation of the raw bytes, or using our encoding method (which then needs to be decoded accordingly at `lora-app-server`). As a reference, this is how we encode our data:
+The data to be sent may be presented as a hex string representation of the raw bytes, using a JS object and a decoding function to extract a bytes array from it, or using our encoding method (which then needs to be decoded accordingly at `lora-app-server`). As a reference, this is how we encode our data:
 
 ```go
 func GenerateFloat(originalFloat, maxValue float32, numBytes int32) []byte {
@@ -143,7 +147,11 @@ func GenerateInt(originalInt, numBytes int32) []byte {
 }
 ```
 
-Values may be added using the `Add encoded type` button and setting the options.
+When using our encoding method, values may be added using the `Add encoded type` button and setting the options.  
+
+To use your own custom JS encoder, click the "Use encoder" checkbox and the "Open decoder" button to open the form:
+
+![](images/encoder.png?raw=true)
 
 #### MAC Commands
 

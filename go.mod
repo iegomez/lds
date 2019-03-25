@@ -17,8 +17,10 @@ require (
 	github.com/jacobsa/crypto v0.0.0-20180924003735-d95898ceee07
 	github.com/konsorten/go-windows-terminal-sequences v1.0.1
 	github.com/pkg/errors v0.8.1
+	github.com/robertkrimen/otto v0.0.0-20180617131154-15f95af6e78d
 	github.com/sirupsen/logrus v1.2.0
 	golang.org/x/crypto v0.0.0-20181112202954-3d3f9f413869
 	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a
 	golang.org/x/sys v0.0.0-20181121002834-0cf1ed9e522b
+	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 )

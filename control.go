@@ -183,3 +183,16 @@ func beginFCtrl() {
 	imgui.SameLine()
 	imgui.Checkbox("FPending##FCtrl-FPending", &fCtrl.FPending)
 }
+
+func beginControl() {
+	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
+	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 250})
+	imgui.Begin("Control")
+	imgui.Text("FCtrl")
+	imgui.Separator()
+	beginFCtrl()
+	imgui.Text("MAC Commands")
+	beginMACCommands()
+	imgui.Separator()
+	imgui.End()
+}
