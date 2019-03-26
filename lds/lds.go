@@ -353,9 +353,13 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	err := phy.DecryptJoinAcceptPayload(d.NwkKey)
 	if err != nil {
 		log.Errorf("can't decrypt join accept: %s", err)
+		return "", err
 	}
 
-	jap := phy.MACPayload.(*lorawan.JoinAcceptPayload)
+	jap, ok := phy.MACPayload.(*lorawan.JoinAcceptPayload)
+	if !ok {
+		return "", errors.New("mac payload is not a join accept payload")
+	}
 
 	if jap.DLSettings.OptNeg {
 		jsIntKey, err := getJSIntKey(d.NwkKey, d.DevEUI)
@@ -501,13 +505,20 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 		return "", err
 	}
 
-	macPayload := phy.MACPayload.(*lorawan.MACPayload)
+	macPayload, ok := phy.MACPayload.(*lorawan.MACPayload)
+	if !ok {
+		return "", errors.New("can't convert mac payload")
+	}
 	log.Infof("mac payload: %+v", macPayload)
 
 	log.Infof("fctrl: %+v", macPayload.FHDR.FCtrl)
 
 	for _, frmPayload := range macPayload.FRMPayload {
-		log.Infof("data payload: %+v", frmPayload.(*lorawan.DataPayload))
+		dp, ok := frmPayload.(*lorawan.DataPayload)
+		if !ok {
+			continue
+		}
+		log.Infof("data payload: %+v", dp)
 	}
 
 	log.Infof("dlFcnt: %d / received Fcnt: %d", d.DlFcnt, macPayload.FHDR.FCnt)

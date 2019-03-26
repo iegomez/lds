@@ -324,12 +324,14 @@ func run() {
 			payload, pErr = hex.DecodeString(config.RawPayload.Payload)
 			if pErr != nil {
 				log.Errorf("couldn't decode hex payload: %s", pErr)
+				running = false
 				return
 			}
 		} else if config.RawPayload.UseEncoder {
 			payload, pErr = EncodeToBytes()
 			if pErr != nil {
 				log.Errorf("couldn't encode js object: %s", pErr)
+				running = false
 				return
 			}
 		} else {
@@ -366,6 +368,7 @@ func run() {
 		gwID, err := lds.MACToGatewayID(config.GW.MAC)
 		if err != nil {
 			log.Errorf("gw mac error: %s", err)
+			running = false
 			return
 		}
 		now := time.Now()
