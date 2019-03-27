@@ -159,9 +159,15 @@ All [lorawan package](https://github.com/brocaar/lorawan) end-device MAC command
 
 ### Building
 
-The package is written in Go and tested with v 1.12. Make sure you have go installed before.  
+The package is written in Go and tested with Go v 1.12. Make sure you have go installed before. The GUI is built using https://github.com/inkyblackness/imgui-go and OpenGL 3.2, so please check that repo to see requirements for your system. It also depends on Redis.  
 
-The GUI is built using https://github.com/inkyblackness/imgui-go and OpenGL 3.2, so please check that repo to see requirements for your system. Once those are met, you may build the package like this: 
+So something like this should work for Debian / Ubuntu / Mint:
+
+```
+sudo apt install build-essential libgl1 libgl1-mesa-dev libgl1-mesa-glx redis-server
+```
+
+Once those are met, you may build the package like this: 
 
 ```
 make
