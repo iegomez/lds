@@ -2,7 +2,6 @@
 *.toml
 /vendor
 /.vendor*
-lds
 cli/cli
 cli/conf.toml
 scroll_test
