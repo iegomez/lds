@@ -164,7 +164,7 @@ The package is written in Go and tested with Go 1.12, which can be downloaded fr
 Something like this should work for Debian / Ubuntu / Mint, but please check [imgui-go](https://github.com/inkyblackness/imgui-go) and general OpenGL docs to see requirements for your system:
 
 ```
-sudo apt install build-essential libgl1 libgl1-mesa-dev libgl1-mesa-glx redis-server
+sudo apt install build-essential xorg-dev libgl1 libgl1-mesa-dev libgl1-mesa-glx redis-server
 ```
 
 Once those are met, you may build the package like this, which will manage dependencies using Go modules: 
