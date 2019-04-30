@@ -92,6 +92,7 @@ var files []os.FileInfo
 var saveFile bool
 var saveFilename string
 var resetDevice bool
+var setRedisValues bool
 var windowWidth = 1200
 var windowHeight = 920
 var dumpHistory bool

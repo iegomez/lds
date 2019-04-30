@@ -11,7 +11,17 @@ import (
 	"github.com/iegomez/lds/lds"
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
+	"strconv"
 )
+
+var ulFcntEdit int
+var dlFcntEdit int
+var devNonceEdit int
+var joinNonceEdit int
+var ulFcntEditS string
+var dlFcntEditS string
+var devNonceEditS string
+var joinNonceEditS string
 
 type device struct {
 	DevEUI        string             `toml:"eui"`
@@ -97,12 +107,17 @@ func beginDeviceForm() {
 		if imgui.Button("Reset device") {
 			resetDevice = true
 		}
+		imgui.SameLine()
+		if imgui.Button("Set values") {
+			setRedisValues = true
+		}
 	}
 	beginReset()
+	beginRedisValues()
 	imgui.Separator()
 	if cDevice != nil {
-		imgui.Text(fmt.Sprintf("DlFCnt: %d - UlFCnt: %d", cDevice.DlFcnt, cDevice.UlFcnt))
-		imgui.Text(fmt.Sprintf("DevNonce: %d - JoinNonce: %d", cDevice.DevNonce, cDevice.JoinNonce))
+		imgui.Text(fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce))
+		imgui.Text(fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce))
 	}
 	imgui.End()
 }
@@ -197,6 +212,14 @@ func setDevice() {
 		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
 		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
 		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+		ulFcntEdit = int(cDevice.UlFcnt)
+		ulFcntEditS = strconv.Itoa(ulFcntEdit)
+		dlFcntEdit = int(cDevice.DlFcnt)
+		dlFcntEditS = strconv.Itoa(dlFcntEdit)
+		devNonceEdit = int(cDevice.DevNonce)
+		devNonceEditS = strconv.Itoa(devNonceEdit)
+		joinNonceEdit = int(cDevice.JoinNonce)
+		joinNonceEditS = strconv.Itoa(joinNonceEdit)
 	} else {
 		cDevice.Reset()
 	}
@@ -231,6 +254,40 @@ func beginReset() {
 				config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
 				config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
 				log.Infoln("device was reset")
+			}
+			imgui.CloseCurrentPopup()
+			//Close popup.
+		}
+		imgui.EndPopup()
+	}
+}
+
+func beginRedisValues() {
+	if setRedisValues {
+		imgui.OpenPopup("Set counters and nonces")
+		setRedisValues = false
+	}
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-170) / 2, Y: float32(windowHeight-70) / 2})
+	imgui.SetNextWindowSize(imgui.Vec2{X: 420, Y: 220})
+	imgui.PushItemWidth(250.0)
+	if imgui.BeginPopupModal("Set counters and nonces") {
+
+		imgui.PushTextWrapPos()
+		imgui.Text("Warning: this will only work when device is activated; when not, values will be reset on program start. Modifying these values may result in failure of communication.")
+		imgui.InputTextV(fmt.Sprintf("DlFcnt    ##dlFcntEdit"), &dlFcntEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(dlFcntEditS, 10, &dlFcntEdit))
+		imgui.InputTextV(fmt.Sprintf("UlFcnt    ##ulFcntEdit"), &ulFcntEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(ulFcntEditS, 10, &ulFcntEdit))
+		imgui.InputTextV(fmt.Sprintf("DevNonce    ##devNonceEdit"), &devNonceEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(devNonceEditS, 10, &devNonceEdit))
+		imgui.InputTextV(fmt.Sprintf("JoinNonce    ##joinNonceEdit"), &joinNonceEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(joinNonceEditS, 10, &joinNonceEdit))
+		imgui.Separator()
+		if imgui.Button("Cancel") {
+			imgui.CloseCurrentPopup()
+		}
+		imgui.SameLine()
+		if imgui.Button("Save") {
+			//Set values.
+			err := cDevice.SetValues(ulFcntEdit, dlFcntEdit, devNonceEdit, joinNonceEdit)
+			if err != nil {
+				log.Errorln(err)
 			}
 			imgui.CloseCurrentPopup()
 			//Close popup.

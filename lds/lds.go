@@ -569,6 +569,43 @@ func (d *Device) Reset() error {
 	return oErr
 }
 
+//SetValues sets counters and nonces manually.
+func (d *Device) SetValues(ulFcnt, dlFcnt, devNonce, joinNonce int) error {
+	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
+	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
+	d.UlFcnt = uint32(ulFcnt)
+	d.DlFcnt = uint32(dlFcnt)
+	d.DevNonce = lorawan.DevNonce(devNonce)
+	d.JoinNonce = lorawan.JoinNonce(joinNonce)
+
+	dlRes := redisClient.Set(dlFcntKey, d.DlFcnt, 0)
+	_, err := dlRes.Result()
+	if err != nil {
+		return err
+	}
+
+	ulRes := redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+	_, err = ulRes.Result()
+	if err != nil {
+		return err
+	}
+
+	jnRes := redisClient.Set(joinNonceKey, uint16(d.JoinNonce), 0)
+	_, err = jnRes.Result()
+	if err != nil {
+		return err
+	}
+
+	dnRes := redisClient.Set(devNonceKey, uint16(d.DevNonce), 0)
+	_, err = dnRes.Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 //GetInfo retrieves device info stored in Redis.
 func (d *Device) GetInfo() bool {
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
@@ -582,7 +619,7 @@ func (d *Device) GetInfo() bool {
 			d.UlFcnt = 0
 		}
 	} else {
-		log.Errorf("redis get key error: %s", err)
+		log.Warningf("[redis] missing ulFcnt key: %s", err)
 	}
 	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
 	df, err := redisClient.Get(dlFcntKey).Result()
@@ -595,7 +632,7 @@ func (d *Device) GetInfo() bool {
 			d.DlFcnt = 0
 		}
 	} else {
-		log.Errorf("redis get key error: %s", err)
+		log.Warningf("[redis] missing dlFcnt key: %s", err)
 	}
 	joinNonceKey := fmt.Sprintf("join-nonce-%s", d.DevEUI[:])
 	sjn, err := redisClient.Get(joinNonceKey).Result()
@@ -608,7 +645,7 @@ func (d *Device) GetInfo() bool {
 			d.JoinNonce = 0
 		}
 	} else {
-		log.Errorf("redis get key error: %s", err)
+		log.Warningf("[redis] missing join nonce key: %s", err)
 	}
 	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
 	sdn, err := redisClient.Get(devNonceKey).Result()
@@ -621,7 +658,7 @@ func (d *Device) GetInfo() bool {
 			d.DevNonce = 0
 		}
 	} else {
-		log.Errorf("redis get key error: %s", err)
+		log.Warningf("[redis] missing dev nonce key: %s", err)
 	}
 	//Check for dev addr and keys in case we were already joined.
 	//Set devAddr and keys at redis so we can override those from a file when we were already joined.
