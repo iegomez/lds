@@ -29,10 +29,15 @@ type redisConf struct {
 	DB       int    `toml:"db"`
 }
 
+type windowConf struct {
+	Width  int `toml:"width"`
+	Height int `toml:"height"`
+}
+
 type tomlConfig struct {
 	MQTT        mqtt           `toml:"mqtt"`
 	Band        band           `toml:"band"`
-	Device      device         `timl:"device"`
+	Device      device         `toml:"device"`
 	GW          gateway        `toml:"gateway"`
 	DR          dataRate       `toml:"data_rate"`
 	RXInfo      rxInfo         `toml:"rx_info"`
@@ -40,6 +45,7 @@ type tomlConfig struct {
 	EncodedType []*encodedType `toml:"encoded_type"`
 	LogLevel    string         `toml:"log_level"`
 	RedisConf   redisConf      `toml:"redis"`
+	Window      windowConf     `toml:"window"`
 }
 
 var confFile *string
@@ -93,8 +99,6 @@ var saveFile bool
 var saveFilename string
 var resetDevice bool
 var setRedisValues bool
-var windowWidth = 1200
-var windowHeight = 920
 var dumpHistory bool
 var historyFile string
 
@@ -121,6 +125,11 @@ func importConf() {
 
 		et := []*encodedType{}
 
+		w := windowConf{
+			Width:  1200,
+			Height: 1000,
+		}
+
 		config = &tomlConfig{
 			MQTT:        cMqtt,
 			Band:        cBand,
@@ -130,6 +139,7 @@ func importConf() {
 			RXInfo:      cRx,
 			RawPayload:  cPl,
 			EncodedType: et,
+			Window:      w,
 		}
 	}
 
@@ -257,7 +267,7 @@ func beginOpenFile() {
 		imgui.OpenPopup("Select file")
 		openFile = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-190) / 2, Y: float32(windowHeight-90) / 2})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Select file") {
@@ -294,7 +304,7 @@ func beginSaveFile() {
 		imgui.OpenPopup("Save file")
 		saveFile = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-190) / 2, Y: float32(windowHeight-90) / 2})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Save file") {
@@ -331,7 +341,12 @@ func main() {
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, 1)
 
-	window, err := glfw.CreateWindow(windowWidth, windowHeight, "LoRaServer device simulator", nil, nil)
+	confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
+	flag.Parse()
+
+	importConf()
+
+	window, err := glfw.CreateWindow(config.Window.Width, config.Window.Height, "LoRaServer device simulator", nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -345,11 +360,6 @@ func main() {
 
 	context := imgui.CreateContext(nil)
 	defer context.Destroy()
-
-	confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
-	flag.Parse()
-
-	importConf()
 
 	//imgui.CurrentStyle().ScaleAllSizes(2.0)
 	//imgui.CurrentIO().SetFontGlobalScale(2.0)

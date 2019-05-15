@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"strconv"
+
+	lwBand "github.com/brocaar/lorawan/band"
+
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/iegomez/lds/lds"
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
-	"strconv"
 )
 
 var ulFcntEdit int
@@ -60,6 +63,7 @@ func beginDeviceForm() {
 		for _, marshaler := range marshalers {
 			if imgui.SelectableV(marshaler, marshaler == config.Device.Marshaler, 0, imgui.Vec2{}) {
 				config.Device.Marshaler = marshaler
+				cDevice.SetMarshaler(config.Device.Marshaler)
 			}
 		}
 		imgui.EndCombo()
@@ -230,7 +234,7 @@ func beginReset() {
 		imgui.OpenPopup("Reset device")
 		resetDevice = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-190) / 2, Y: float32(windowHeight-90) / 2})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Reset device") {
@@ -267,7 +271,7 @@ func beginRedisValues() {
 		imgui.OpenPopup("Set counters and nonces")
 		setRedisValues = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(windowWidth-170) / 2, Y: float32(windowHeight-70) / 2})
+	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-170) / 2, Y: float32(config.Window.Height-70) / 2})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 420, Y: 220})
 	imgui.PushItemWidth(250.0)
 	if imgui.BeginPopupModal("Set counters and nonces") {
@@ -309,34 +313,48 @@ func join() {
 	//Always set device to get any changes to the configuration.
 	setDevice()
 
-	dataRate := &lds.DataRate{
-		Bandwidth:    config.DR.Bandwith,
-		Modulation:   "LORA",
-		SpreadFactor: config.DR.SpreadFactor,
-		BitRate:      config.DR.BitRate,
-	}
-
-	rxInfo := &lds.RxInfo{
-		Channel:   config.RXInfo.Channel,
-		CodeRate:  config.RXInfo.CodeRate,
-		CrcStatus: config.RXInfo.CrcStatus,
-		DataRate:  dataRate,
-		Frequency: config.RXInfo.Frequency,
-		LoRaSNR:   float32(config.RXInfo.LoRaSNR),
-		Mac:       config.GW.MAC,
-		RfChain:   config.RXInfo.RfChain,
-		Rssi:      config.RXInfo.Rssi,
-		Time:      time.Now().Format(time.RFC3339),
-		Timestamp: int32(time.Now().UnixNano() / 1000000000),
-	}
-
 	gwID, err := lds.MACToGatewayID(config.GW.MAC)
 	if err != nil {
 		log.Errorf("gw mac error: %s", err)
 		return
 	}
 
-	err = cDevice.Join(mqttClient, string(gwID), *rxInfo)
+	now := time.Now()
+	rxTime := ptypes.TimestampNow()
+	tsge := ptypes.DurationProto(now.Sub(time.Time{}))
+
+	urx := gw.UplinkRXInfo{
+		GatewayId:         gwID,
+		Rssi:              int32(config.RXInfo.Rssi),
+		LoraSnr:           float64(config.RXInfo.LoRaSNR),
+		Channel:           uint32(config.RXInfo.Channel),
+		RfChain:           uint32(config.RXInfo.RfChain),
+		TimeSinceGpsEpoch: tsge,
+		Time:              rxTime,
+		Board:             0,
+		Antenna:           0,
+		Location:          nil,
+		FineTimestamp:     nil,
+		FineTimestampType: gw.FineTimestampType_NONE,
+		Context:           make([]byte, 4),
+	}
+
+	lmi := &gw.LoRaModulationInfo{
+		Bandwidth:       uint32(config.DR.Bandwidth),
+		SpreadingFactor: uint32(config.DR.SpreadFactor),
+		CodeRate:        config.RXInfo.CodeRate,
+	}
+
+	umi := &gw.UplinkTXInfo_LoraModulationInfo{
+		LoraModulationInfo: lmi,
+	}
+
+	utx := gw.UplinkTXInfo{
+		Frequency:      uint32(config.RXInfo.Frequency),
+		ModulationInfo: umi,
+	}
+
+	err = cDevice.Join(mqttClient, config.MQTT.UplinkTopic, config.GW.MAC, &urx, &utx)
 
 	if err != nil {
 		log.Errorf("join error: %s", err)
@@ -359,10 +377,18 @@ func run() {
 
 	setDevice()
 
-	dataRate := &lds.DataRate{
-		Bandwidth:    config.DR.Bandwith,
+	/*dataRate := &lds.DataRate{
+		Bandwidth:    config.DR.Bandwidth,
 		Modulation:   "LORA",
 		SpreadFactor: config.DR.SpreadFactor,
+		BitRate:      config.DR.BitRate,
+	}*/
+
+	//Get DR index from a dr.
+	dataRate := lwBand.DataRate{
+		Modulation:   lwBand.Modulation("LORA"),
+		SpreadFactor: config.DR.SpreadFactor,
+		Bandwidth:    config.DR.Bandwidth,
 		BitRate:      config.DR.BitRate,
 	}
 
@@ -403,25 +429,6 @@ func run() {
 			}
 		}
 
-		//Construct DataRate RxInfo with proper values according to your band (example is for US 915).
-
-		rxInfo := &lds.RxInfo{
-			Channel:   config.RXInfo.Channel,
-			CodeRate:  config.RXInfo.CodeRate,
-			CrcStatus: config.RXInfo.CrcStatus,
-			DataRate:  dataRate,
-			Frequency: config.RXInfo.Frequency,
-			LoRaSNR:   float32(config.RXInfo.LoRaSNR),
-			Mac:       config.GW.MAC,
-			RfChain:   config.RXInfo.RfChain,
-			Rssi:      config.RXInfo.Rssi,
-			Size:      len(payload),
-			Time:      time.Now().Format(time.RFC3339),
-			Timestamp: int32(time.Now().UnixNano() / 1000000000),
-		}
-
-		//////
-
 		gwID, err := lds.MACToGatewayID(config.GW.MAC)
 		if err != nil {
 			log.Errorf("gw mac error: %s", err)
@@ -434,24 +441,24 @@ func run() {
 
 		urx := gw.UplinkRXInfo{
 			GatewayId:         gwID,
-			Rssi:              int32(rxInfo.Rssi),
-			LoraSnr:           float64(rxInfo.LoRaSNR),
-			Channel:           uint32(rxInfo.Channel),
-			RfChain:           uint32(rxInfo.RfChain),
+			Rssi:              int32(config.RXInfo.Rssi),
+			LoraSnr:           float64(config.RXInfo.LoRaSNR),
+			Channel:           uint32(config.RXInfo.Channel),
+			RfChain:           uint32(config.RXInfo.RfChain),
 			TimeSinceGpsEpoch: tsge,
 			Time:              rxTime,
-			Timestamp:         uint32(rxTime.GetSeconds()),
 			Board:             0,
 			Antenna:           0,
 			Location:          nil,
 			FineTimestamp:     nil,
 			FineTimestampType: gw.FineTimestampType_NONE,
+			Context:           make([]byte, 4),
 		}
 
 		lmi := &gw.LoRaModulationInfo{
-			Bandwidth:       uint32(rxInfo.DataRate.Bandwidth),
-			SpreadingFactor: uint32(rxInfo.DataRate.SpreadFactor),
-			CodeRate:        rxInfo.CodeRate,
+			Bandwidth:       uint32(config.DR.Bandwidth),
+			SpreadingFactor: uint32(config.DR.SpreadFactor),
+			CodeRate:        config.RXInfo.CodeRate,
 		}
 
 		umi := &gw.UplinkTXInfo_LoraModulationInfo{
@@ -459,7 +466,7 @@ func run() {
 		}
 
 		utx := gw.UplinkTXInfo{
-			Frequency:      uint32(rxInfo.Frequency),
+			Frequency:      uint32(config.RXInfo.Frequency),
 			ModulationInfo: umi,
 		}
 
@@ -471,7 +478,7 @@ func run() {
 		}
 
 		//Now send an uplink
-		ulfc, err := cDevice.Uplink(mqttClient, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, *dataRate, fOpts, fCtrl)
+		ulfc, err := cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		if err != nil {
 			log.Errorf("couldn't send uplink: %s", err)
 		} else {

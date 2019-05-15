@@ -24,36 +24,6 @@ import (
 	"github.com/go-redis/redis"
 )
 
-//Message holds physical payload and rx info.
-type Message struct {
-	PhyPayload string  `json:"phyPayload"`
-	RxInfo     *RxInfo `json:"rxInfo"`
-}
-
-//RxInfo holds all relevant information of a lora message.
-type RxInfo struct {
-	Channel   int       `json:"channel"`
-	CodeRate  string    `json:"codeRate"`
-	CrcStatus int       `json:"crcStatus"`
-	DataRate  *DataRate `json:"dataRate"`
-	Frequency int       `json:"frequency"`
-	LoRaSNR   float32   `json:"loRaSNR"`
-	Mac       string    `json:"mac"`
-	RfChain   int       `json:"rfChain"`
-	Rssi      int       `json:"rssi"`
-	Size      int       `json:"size"`
-	Time      string    `json:"time"`
-	Timestamp int32     `json:"timestamp"`
-}
-
-//DataRate holds relevant info for data rate.
-type DataRate struct {
-	Bandwidth    int    `json:"bandwidth"`
-	Modulation   string `json:"modulation"`
-	SpreadFactor int    `json:"spreadFactor"`
-	BitRate      int    `json:"bitrate"`
-}
-
 //Device holds device keys, addr, eui and fcnt.
 type Device struct {
 	DevEUI        lorawan.EUI64      `json:"devEUI"`
@@ -137,7 +107,7 @@ func (d *Device) SetMarshaler(opt string) {
 }
 
 //Join sends a join request for a given device (OTAA) and rxInfo.
-func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
+func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
 
 	d.Joined = false
 	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
@@ -169,24 +139,35 @@ func (d *Device) Join(client MQTT.Client, gwMac string, rxInfo RxInfo) error {
 		return err
 	}
 
-	joinStr, err := joinPhy.MarshalText()
+	joinStr, err := joinPhy.MarshalBinary()
 	if err != nil {
 		return err
 	}
 
-	message := &Message{
-		PhyPayload: string(joinStr),
-		RxInfo:     &rxInfo,
+	message := &gw.UplinkFrame{
+		PhyPayload: joinStr,
+		RxInfo:     rxInfo,
+		TxInfo:     txInfo,
 	}
 
-	pErr := publish(client, "gateway/"+rxInfo.Mac+"/rx", message)
+	log.Infof("frame: %+v\n", message)
+
+	topic := fmt.Sprintf(topicTemplate, gwMac)
+
+	b, err := d.marshal(message)
+	if err != nil {
+		log.Errorf("error marshaling join message: %s", err)
+		return err
+	}
+
+	pErr := publish(client, topic, b)
 
 	return pErr
 
 }
 
-//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge. Works only for ABP devices with relaxed frame counter.
-func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dr DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
+//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge.
+func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
 
 	//Get uplink frame counter.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
@@ -237,13 +218,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		if err != nil {
 			return d.UlFcnt, err
 		}
-		//Get DR index from a dr.
-		dataRate := band.DataRate{
-			Modulation:   band.Modulation(dr.Modulation),
-			SpreadFactor: dr.SpreadFactor,
-			Bandwidth:    dr.Bandwidth,
-			BitRate:      dr.BitRate,
-		}
+
 		txDR, err := b.GetDataRateIndex(true, dataRate)
 		if err != nil {
 			return d.UlFcnt, err
@@ -299,6 +274,7 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 		TxInfo:     txInfo,
 	}
 
+	log.Debugf("message: %+v\n", message)
 	log.Debugf("payload: %v\n", string(message.PhyPayload))
 
 	bytes, err := d.marshal(&message)
@@ -308,7 +284,9 @@ func (d *Device) Uplink(client MQTT.Client, mType lorawan.MType, fPort uint8, rx
 
 	log.Debugf("marshaled message: %v\n", string(bytes))
 
-	if token := client.Publish("gateway/"+gwMAC+"/rx", 0, false, bytes); token.Wait() && token.Error() != nil {
+	topic := fmt.Sprintf(topicTemplate, gwMAC)
+
+	if token := client.Publish(topic, 0, false, bytes); token.Wait() && token.Error() != nil {
 		log.Errorf("publish error: %s", token.Error())
 		return d.UlFcnt, token.Error()
 	}
@@ -799,15 +777,12 @@ func testMIC(appKey [16]byte, appEUI, devEUI [8]byte) error {
 }
 
 //publish publishes a message to the broker.
-func publish(client MQTT.Client, topic string, v interface{}) error {
+func publish(client MQTT.Client, topic string, bytes []byte) error {
 
-	bytes, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
+	log.Infof("sending to topic %s", topic)
 
 	if token := client.Publish(topic, 0, false, bytes); token.Wait() && token.Error() != nil {
-		fmt.Println(token.Error())
+		log.Errorf("publish error: %s", token.Error())
 		return token.Error()
 	}
 

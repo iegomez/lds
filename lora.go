@@ -12,7 +12,7 @@ type band struct {
 }
 
 type dataRate struct {
-	Bandwith     int    `toml:"bandwith"`
+	Bandwidth    int    `toml:"bandwith"`
 	SpreadFactor int    `toml:"spread_factor"`
 	BitRate      int    `toml:"bit_rate"`
 	BitRateS     string `toml:"-"`
@@ -49,10 +49,10 @@ func beginLoRaForm() {
 		imgui.EndCombo()
 	}
 
-	if imgui.BeginCombo("Bandwidth", strconv.Itoa(config.DR.Bandwith)) {
+	if imgui.BeginCombo("Bandwidth", strconv.Itoa(config.DR.Bandwidth)) {
 		for _, bandwidth := range bandwidths {
-			if imgui.SelectableV(strconv.Itoa(bandwidth), bandwidth == config.DR.Bandwith, 0, imgui.Vec2{}) {
-				config.DR.Bandwith = bandwidth
+			if imgui.SelectableV(strconv.Itoa(bandwidth), bandwidth == config.DR.Bandwidth, 0, imgui.Vec2{}) {
+				config.DR.Bandwidth = bandwidth
 			}
 		}
 		imgui.EndCombo()

@@ -1,11 +1,11 @@
 ## Loraserver device simulator
 
 This is an utility program to simulate devices for the [loraserver](https://loraserver.io) project.  Basically, it acts as a `lora-gateway-bridge` middleman, publishing and receiving messages through MQTT.
-It supports all bands and configurations LoRaWAN versions 1.0 and 1.1.  
+It supports all bands and configurations LoRaWAN versions 1.0 and 1.1 and is compatible with newest version of `loraserver` modules (v3 test).
 
 It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
 
-**Important**: This is a work in progress: the `cli` mode needs to be rewritten (it doesn't work right now) and there may be bugs in the `gui` version. Please report any by filing and issue.
+Please report any bug or request new features by filing and issue.
 
 ![](images/new-gui.png?raw=true)
 
@@ -25,6 +25,10 @@ log_level = "info"
   server = "tcp://localhost:1883"
   user = "username"
   password = "password"
+	# Uplink topic. %s will be replaced with the gateway mac.
+  uplink_topic="gateway/%s/event/up"
+  # Downlink topic. %s will be replaced with the gateway mac.
+  downlink_topic="gateway/%s/command/down"
 
 [gateway]
   mac = "b827ebfffe9448d0"
@@ -99,6 +103,10 @@ log_level = "info"
   addr = "localhost:6379"
   password = ""
   db = 10
+
+[window]
+	width = 1200
+	height = 1000
 ```
 You may also import files located at `working-dir/confs` and save to the same directory.
 

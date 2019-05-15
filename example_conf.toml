@@ -4,6 +4,10 @@ log_level = "info"
   server = "tcp://localhost:1883"
   user = "username"
   password = "password"
+  # Uplink topic. %s will be replaced with the gateway mac.
+  uplink_topic="gateway/%s/event/up"
+  # Downlink topic. %s will be replaced with the gateway mac.
+  downlink_topic="gateway/%s/command/down"
 
 [gateway]
   mac = "b827ebfffe9448d0"
@@ -11,7 +15,7 @@ log_level = "info"
 [band]
   name = "AU_915_928"
 
-[Device]
+[device]
 eui="0000000000000000"
 address="000f6e3b"
 network_session_encription_key="dc5351f56794ed3ac17c382927192858"
@@ -78,3 +82,7 @@ skip_fcnt_check=true
   addr = "localhost:6379"
   password = ""
   db = 10
+
+[window]
+  width = 1200
+  height = 1000

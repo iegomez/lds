@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/iegomez/lds/lds"
@@ -10,13 +11,16 @@ import (
 )
 
 type mqtt struct {
-	Server   string `toml:"server"`
-	User     string `toml:"user"`
-	Password string `toml:"password"`
+	Server        string `toml:"server"`
+	User          string `toml:"user"`
+	Password      string `toml:"password"`
+	DownlinkTopic string `toml:"downlink_topic"`
+	UplinkTopic   string `toml:"uplink_topic"`
 }
 
 type gateway struct {
-	MAC string `toml:"mac"`
+	MAC           string `toml:"mac"`
+	BridgeVersion string `toml:"bridge_version"`
 }
 
 func beginMQTTForm() {
@@ -29,6 +33,8 @@ func beginMQTTForm() {
 	imgui.InputText("User", &config.MQTT.User)
 	imgui.InputTextV("Password", &config.MQTT.Password, imgui.InputTextFlagsPassword, nil)
 	imgui.InputText("MAC", &config.GW.MAC)
+	imgui.InputText("Downlink topic", &config.MQTT.DownlinkTopic)
+	imgui.InputText("Uplink topic", &config.MQTT.UplinkTopic)
 	if imgui.Button("Connect") {
 		connectClient()
 	}
@@ -51,6 +57,7 @@ func connectClient() error {
 	opts.SetUsername(config.MQTT.User)
 	opts.SetPassword(config.MQTT.Password)
 	opts.SetAutoReconnect(true)
+	opts.SetClientID(fmt.Sprintf("lds-%d", time.Now().UnixNano()))
 
 	mqttClient = paho.NewClient(opts)
 	log.Infoln("connecting...")
@@ -59,7 +66,7 @@ func connectClient() error {
 		return token.Error()
 	}
 	log.Infoln("connection established")
-	mqttClient.Subscribe(fmt.Sprintf("gateway/%s/tx", config.GW.MAC), 1, func(c paho.Client, msg paho.Message) {
+	mqttClient.Subscribe(fmt.Sprintf(config.MQTT.DownlinkTopic, config.GW.MAC), 1, func(c paho.Client, msg paho.Message) {
 		if cDevice != nil {
 			dlMessage, err := cDevice.ProcessDownlink(msg.Payload(), cDevice.MACVersion)
 			//Update keys when necessary.

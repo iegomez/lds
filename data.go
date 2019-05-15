@@ -133,7 +133,7 @@ func beginScript() {
 		imgui.OpenPopup("JS encoder")
 		openScript = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: (float32(windowWidth) / 2) - 370.0, Y: (float32(windowHeight) / 2) - 200.0})
+	imgui.SetNextWindowPos(imgui.Vec2{X: (float32(config.Window.Width) / 2) - 370.0, Y: (float32(config.Window.Height) / 2) - 200.0})
 	imgui.SetNextWindowSize(imgui.Vec2{X: 740, Y: 600})
 	if imgui.BeginPopupModal("JS encoder") {
 		imgui.Text(`If "Use encoder" is checked, you may write a function that accepts a JS object`)
