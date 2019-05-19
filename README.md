@@ -25,7 +25,7 @@ log_level = "info"
   server = "tcp://localhost:1883"
   user = "username"
   password = "password"
-	# Uplink topic. %s will be replaced with the gateway mac.
+  # Uplink topic. %s will be replaced with the gateway mac.
   uplink_topic="gateway/%s/event/up"
   # Downlink topic. %s will be replaced with the gateway mac.
   downlink_topic="gateway/%s/command/down"
@@ -36,21 +36,21 @@ log_level = "info"
 [band]
   name = "AU_915_928"
 
-[Device]
-	eui="0000000000000000"
-	address="000f6e3b"
-	network_session_encription_key="dc5351f56794ed3ac17c382927192858"
-	serving_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
-	forwarding_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
-	application_session_key="7b14565ba0e30d6ced804393fd6a0dd5"
-	marshaler="json"
-	nwk_key="00000000000000010000000000000001"
-	app_key="00000000000000010000000000000001"
-	join_eui="0000000000000002"
-	mac_version=1
-	profile="OTAA"
-	joined=false
-	skip_fcnt_check=true
+[device]
+  eui="0000000000000000"
+  address="000f6e3b"
+  network_session_encription_key="dc5351f56794ed3ac17c382927192858"
+  serving_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
+  forwarding_network_session_integrity_key="dc5351f56794ed3ac17c382927192858"
+  application_session_key="7b14565ba0e30d6ced804393fd6a0dd5"
+  marshaler="json"
+  nwk_key="00000000000000010000000000000001"
+  app_key="00000000000000010000000000000001"
+  join_eui="0000000000000002"
+  mac_version=1
+  profile="OTAA"
+  joined=false
+  skip_fcnt_check=true
 
 [data_rate]
   bandwith = 125
@@ -105,12 +105,12 @@ log_level = "info"
   db = 10
 
 [window]
-	width = 1200
-	height = 1000
+  width = 1200
+  height = 1000
 ```
 You may also import files located at `working-dir/confs` and save to the same directory.
 
-When OTAA is set and the device is joined, uponinitialization the program will try to load keys and relevant data from Redis, overriding keys from the file.
+When OTAA is set and the device is joined, upon initialization the program will try to load keys and relevant data from Redis, overriding keys from the file.
 
 ### Data
 
