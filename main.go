@@ -46,6 +46,7 @@ type tomlConfig struct {
 	LogLevel    string         `toml:"log_level"`
 	RedisConf   redisConf      `toml:"redis"`
 	Window      windowConf     `toml:"window"`
+	Provisioner provisioner    `toml:"provisioner"`
 }
 
 var confFile *string
@@ -130,6 +131,8 @@ func importConf() {
 			Height: 1000,
 		}
 
+		p := provisioner{}
+
 		config = &tomlConfig{
 			MQTT:        cMqtt,
 			Band:        cBand,
@@ -140,6 +143,7 @@ func importConf() {
 			RawPayload:  cPl,
 			EncodedType: et,
 			Window:      w,
+			Provisioner: p,
 		}
 	}
 
@@ -219,6 +223,10 @@ func beginMenu() {
 
 			if imgui.MenuItem("Save") {
 				saveFile = true
+			}
+
+			if imgui.MenuItem("Provision") {
+				openProvisioner = true
 			}
 
 			imgui.EndMenu()
@@ -379,6 +387,7 @@ func main() {
 		beginDataForm()
 		beginOutput()
 		beginMenu()
+		beginProvisioner()
 		displayWidth, displayHeight := window.GetFramebufferSize()
 		gl.Viewport(0, 0, int32(displayWidth), int32(displayHeight))
 		gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W)
