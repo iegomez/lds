@@ -17,14 +17,32 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var ulFcntEdit int
-var dlFcntEdit int
-var devNonceEdit int
-var joinNonceEdit int
-var ulFcntEditS string
-var dlFcntEditS string
-var devNonceEditS string
-var joinNonceEditS string
+// Marshalers, versions, and message types.
+var (
+	marshalers    = []string{"json", "protobuf", "v2_json"}
+	majorVersions = map[lorawan.Major]string{0: "LoRaWANRev1"}
+	macVersions   = map[lorawan.MACVersion]string{0: "LoRaWAN 1.0", 1: "LoRaWAN 1.1"}
+	mTypes        = map[lorawan.MType]string{lorawan.UnconfirmedDataUp: "UnconfirmedDataUp", lorawan.ConfirmedDataUp: "ConfirmedDataUp"}
+)
+
+// lds device related vars.
+var (
+	cDevice        *lds.Device
+	resetDevice    bool
+	setRedisValues bool
+)
+
+// Frame counters and nonces.
+var (
+	ulFcntEdit     int
+	dlFcntEdit     int
+	devNonceEdit   int
+	joinNonceEdit  int
+	ulFcntEditS    string
+	dlFcntEditS    string
+	devNonceEditS  string
+	joinNonceEditS string
+)
 
 type device struct {
 	DevEUI        string             `toml:"eui"`
