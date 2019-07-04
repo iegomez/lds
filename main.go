@@ -18,8 +18,6 @@ import (
 	"github.com/iegomez/lds/lds"
 	"github.com/inkyblackness/imgui-go"
 
-	lwband "github.com/brocaar/lorawan/band"
-	paho "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,38 +47,21 @@ type tomlConfig struct {
 	Provisioner provisioner    `toml:"provisioner"`
 }
 
-var confFile *string
-var config *tomlConfig
-var stop bool
-var marshalers = []string{"json", "protobuf", "v2_json"}
-var bands = []lwband.Name{
-	lwband.AS_923,
-	lwband.AU_915_928,
-	lwband.CN_470_510,
-	lwband.CN_779_787,
-	lwband.EU_433,
-	lwband.EU_863_870,
-	lwband.IN_865_867,
-	lwband.KR_920_923,
-	lwband.US_902_928,
-	lwband.RU_864_870,
-}
-var majorVersions = map[lorawan.Major]string{0: "LoRaWANRev1"}
-var macVersions = map[lorawan.MACVersion]string{0: "LoRaWAN 1.0", 1: "LoRaWAN 1.1"}
-var mTypes = map[lorawan.MType]string{lorawan.UnconfirmedDataUp: "UnconfirmedDataUp", lorawan.ConfirmedDataUp: "ConfirmedDataUp"}
+// Configuration holders.
+var (
+	confFile *string
+	config   *tomlConfig
+)
 
-var bandwidths = []int{50, 125, 250, 500}
-var spreadFactors = []int{7, 8, 9, 10, 11, 12}
-
-var sendOnce bool
-var interval int32
-
+// This holds the "console" visible text, line number and history (so we can dump everything even when console has been cleared).
 type outputWriter struct {
 	Text    string
 	Counter int
 	History string
 }
 
+// Write just appends to text and history, using the counter as line number for the text.
+// It also allows outputWriter to implement the Writer interface so it may be passed to the logger.
 func (o *outputWriter) Write(p []byte) (n int, err error) {
 	o.Counter++
 	o.Text = fmt.Sprintf("%s%05d  %s", o.Text, o.Counter, string(p))
@@ -88,23 +69,31 @@ func (o *outputWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// The writer instance
 var ow = &outputWriter{Text: "", Counter: 0}
-var repeat bool
-var running bool
 
-var mqttClient paho.Client
-var cDevice *lds.Device
-var openFile bool
-var files []os.FileInfo
-var saveFile bool
-var saveFilename string
-var resetDevice bool
-var setRedisValues bool
-var dumpHistory bool
-var historyFile string
+// Message sending control and status.
+var (
+	repeat   bool
+	running  bool
+	stop     bool
+	sendOnce bool
+	interval int32
+)
+
+// Configuration files loading and saving.
+var (
+	openFile     bool
+	files        []os.FileInfo
+	saveFile     bool
+	saveFilename string
+	mwOpen       = true
+)
 
 func importConf() {
 
+	//When config hasn't been initialized we need to provide fresh zero instances with some defaults.
+	//Decoding the conf file will override any present option.
 	if config == nil {
 		cMqtt := mqtt{}
 
@@ -291,7 +280,6 @@ func beginOpenFile() {
 			}
 			imgui.EndCombo()
 		}
-		//imgui.Text("hola hola hola hola hola hola hola hola hola hola")
 		imgui.Separator()
 		if imgui.Button("Cancel") {
 			imgui.CloseCurrentPopup()
@@ -369,9 +357,6 @@ func main() {
 	context := imgui.CreateContext(nil)
 	defer context.Destroy()
 
-	//imgui.CurrentStyle().ScaleAllSizes(2.0)
-	//imgui.CurrentIO().SetFontGlobalScale(2.0)
-
 	impl := imguiGlfw3Init(window)
 	defer impl.Shutdown()
 
@@ -380,6 +365,7 @@ func main() {
 	for !window.ShouldClose() {
 		glfw.PollEvents()
 		impl.NewFrame()
+
 		beginMQTTForm()
 		beginDeviceForm()
 		beginLoRaForm()
@@ -388,6 +374,7 @@ func main() {
 		beginOutput()
 		beginMenu()
 		beginProvisioner()
+
 		displayWidth, displayHeight := window.GetFramebufferSize()
 		gl.Viewport(0, 0, int32(displayWidth), int32(displayHeight))
 		gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W)

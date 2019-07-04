@@ -10,6 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var mqttClient paho.Client
+
 type mqtt struct {
 	Server        string `toml:"server"`
 	User          string `toml:"user"`

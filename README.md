@@ -21,6 +21,12 @@ The GUI allows to modify all options, but they may also be seeded with a conf fi
 #Configuration.
 log_level = "info"
 
+[provisioner]
+	hostname = "https://example.com"
+	username = "username"
+	password = "password"
+	path = "path/to/devices.csv"
+
 [mqtt]
   server = "tcp://localhost:1883"
   user = "username"
@@ -164,6 +170,10 @@ To use your own custom JS encoder, click the "Use encoder" checkbox and the "Ope
 #### MAC Commands
 
 All [lorawan package](https://github.com/brocaar/lorawan) end-device MAC commands are available to be sent with a message. Check desired mac commands and fill their payloads when needed.
+
+### Device provisioning
+
+You may provision devices from a CSV file using the simple https://github.com/iegomez/lsp package. Open the form with File -> Provision, which'll let you input `hostname`, `username` and `password` (click `Login` to get and store a token for further calls), fill the local `path` to point to the desired CSV (click `Load` to retrieve devices from the file) and then click on `Provision` to provision the devices through `lora-app-server's` API. See https://github.com/iegomez/lsp/blob/master/devices-example-format.csv to check the required CSV format.
 
 ### Building
 

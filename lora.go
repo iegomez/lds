@@ -7,6 +7,24 @@ import (
 	"github.com/inkyblackness/imgui-go"
 )
 
+// Bands and data rate options.
+var (
+	bandwidths    = []int{50, 125, 250, 500}
+	spreadFactors = []int{7, 8, 9, 10, 11, 12}
+	bands         = []lwband.Name{
+		lwband.AS_923,
+		lwband.AU_915_928,
+		lwband.CN_470_510,
+		lwband.CN_779_787,
+		lwband.EU_433,
+		lwband.EU_863_870,
+		lwband.IN_865_867,
+		lwband.KR_920_923,
+		lwband.US_902_928,
+		lwband.RU_864_870,
+	}
+)
+
 type band struct {
 	Name lwband.Name `toml:"name"`
 }
