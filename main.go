@@ -34,6 +34,7 @@ type windowConf struct {
 
 type tomlConfig struct {
 	MQTT        mqtt           `toml:"mqtt"`
+	Forwarder   forwarder      `toml:"forwarder"`
 	Band        band           `toml:"band"`
 	Device      device         `toml:"device"`
 	GW          gateway        `toml:"gateway"`
@@ -97,6 +98,8 @@ func importConf() {
 	if config == nil {
 		cMqtt := mqtt{}
 
+		cForwarder := forwarder{}
+
 		cGw := gateway{}
 
 		cDev := device{
@@ -124,6 +127,7 @@ func importConf() {
 
 		config = &tomlConfig{
 			MQTT:        cMqtt,
+			Forwarder:   cForwarder,
 			Band:        cBand,
 			Device:      cDev,
 			GW:          cGw,
@@ -367,6 +371,7 @@ func main() {
 		impl.NewFrame()
 
 		beginMQTTForm()
+		beginForwarderForm()
 		beginDeviceForm()
 		beginLoRaForm()
 		beginControl()
