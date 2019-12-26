@@ -1,14 +1,19 @@
 package main
 
 import (
+	"strconv"
+
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
 )
 
 type nsclient struct {
 	Connected bool
+	Server string
+	Port int
 }
 
+// NSClient is a direct NetworkServer connection handle
 var NSClient nsclient
 
 type forwarder struct {
@@ -38,15 +43,25 @@ func beginForwarderForm() {
 }
 
 func forwarderConnect() error {
+	port, err := strconv.Atoi(config.Forwarder.Port)
+
+	if err != nil {
+		log.Warn("Bad Network server UDP port")
+		return err
+	}
+
+	NSClient.Server = config.Forwarder.Server
+	NSClient.Port = port
 	NSClient.Connected = true
-	log.Infoln("UDP Forwared Started")
+	log.Infoln("UDP Forwarder Started (MQTT disabled)")
 	// TODO subscribe to downlinks
 
 	return nil
 }
 
 func forwarderDisconnect() error {
-	log.Infoln("UDP Forwared Stopped")
+	NSClient.Connected = false
+	log.Infoln("UDP Forwarder Stopped (MQTT back again")
 
 	return nil
 }

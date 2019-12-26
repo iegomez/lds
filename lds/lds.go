@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"net"
 
 	"github.com/pkg/errors"
 
@@ -106,8 +107,7 @@ func (d *Device) SetMarshaler(opt string) {
 	}
 }
 
-//Join sends a join request for a given device (OTAA) and rxInfo.
-func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
+func (d *Device) marshalJoinMessage(gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) ([]byte, error) {
 
 	d.Joined = false
 	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
@@ -136,12 +136,12 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 	}
 
 	if err := joinPhy.SetUplinkJoinMIC(d.NwkKey); err != nil {
-		return err
+		return nil, err
 	}
 
 	joinStr, err := joinPhy.MarshalBinary()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	message := &gw.UplinkFrame{
@@ -152,13 +152,25 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 
 	log.Infof("frame: %+v\n", message)
 
-	topic := fmt.Sprintf(topicTemplate, gwMac)
-
 	b, err := d.marshal(message)
 	if err != nil {
 		log.Errorf("error marshaling join message: %s", err)
+		return nil, err
+	}
+
+	return b, nil
+}
+
+//Join sends a join request for a given device (OTAA) and rxInfo.
+func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
+
+	b, err := d.marshalJoinMessage(gwMac, rxInfo, txInfo)
+
+	if err != nil {
 		return err
 	}
+
+	topic := fmt.Sprintf(topicTemplate, gwMac)
 
 	pErr := publish(client, topic, b)
 
@@ -166,8 +178,7 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 
 }
 
-//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge.
-func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
+func (d *Device) marshalUplinkMessage(mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) ([]byte, error) {
 
 	//Get uplink frame counter.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
@@ -203,25 +214,25 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 	if err := phy.EncryptFRMPayload(d.AppSKey); err != nil {
 		log.Debugf("encrypt frm payload: %s", err)
-		return d.UlFcnt, err
+		return nil, err
 	}
 
 	if d.MACVersion == lorawan.LoRaWAN1_0 {
 		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey); err != nil {
 			log.Debugf("set uplink mic error: %s", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 		phy.ValidateUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey)
 	} else if d.MACVersion == lorawan.LoRaWAN1_1 {
 		//Get the band.
 		b, err := band.GetConfig(bandName, false, lorawan.DwellTime400ms)
 		if err != nil {
-			return d.UlFcnt, err
+			return nil, err
 		}
 
 		txDR, err := b.GetDataRateIndex(true, dataRate)
 		if err != nil {
-			return d.UlFcnt, err
+			return nil, err
 		}
 		//Get tx ch.
 		var txCh int
@@ -233,7 +244,7 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 			c, err := b.GetUplinkChannel(i)
 			if err != nil {
-				return d.UlFcnt, err
+				return nil, err
 			}
 
 			// there could be multiple channels using the same frequency, but with different data-rates.
@@ -247,24 +258,24 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 		//Encrypt fOPts.
 		if err := phy.EncryptFOpts(d.NwkSEncKey); err != nil {
 			log.Errorf("encrypt fopts error: %s", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 
 		//Now set the MIC.
 		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, d.UlFcnt, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
 			log.Errorf("set uplink mic error: %s", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 
 	} else {
-		return d.UlFcnt, errors.New("unknown lorawan version")
+		return nil, errors.New("unknown lorawan version")
 	}
 
 	phyBytes, err := phy.MarshalBinary()
 	if err != nil {
 		if err != nil {
 			log.Debugf("marshal binary error: %s\n", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 	}
 
@@ -279,10 +290,22 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 	bytes, err := d.marshal(&message)
 	if err != nil {
-		return d.UlFcnt, err
+		return nil, err
 	}
 
 	log.Debugf("marshaled message: %v\n", string(bytes))
+
+	return bytes, nil
+}
+
+//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge.
+func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
+
+	bytes, err := d.marshalUplinkMessage(mType, fPort, rxInfo, txInfo, payload, gwMAC, bandName, dataRate, macCommands, fCtrl)
+
+	if err != nil {
+		return d.UlFcnt, err
+	}
 
 	topic := fmt.Sprintf(topicTemplate, gwMAC)
 
@@ -293,10 +316,50 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 	//Message was sent, UlFcnt can be set.
 	d.UlFcnt++
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
 	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 
 	return d.UlFcnt, nil
+}
 
+// UplinkUDP is an alternative method to send LoRa PHY directly by UDP datagrams to support a generic network server
+func (d *Device) UplinkUDP(hostip string, port int, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
+	ip := net.ParseIP(hostip)
+
+	if ip == nil {
+		return d.UlFcnt, errors.New("bad network server IP")
+	}
+
+	addr := net.UDPAddr{
+		Port: port,
+		IP:   ip,
+	}
+
+	bytes, err := d.marshalUplinkMessage(mType, fPort, rxInfo, txInfo, payload, gwMAC, bandName, dataRate, macCommands, fCtrl)
+
+	if err != nil {
+		return d.UlFcnt, err
+	}
+
+	conn, err := net.DialUDP("udp", nil, &addr)
+
+	if err != nil {
+		return d.UlFcnt, err
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(bytes)
+
+	if err != nil {
+		return d.UlFcnt, err
+	}
+
+	//Message was sent, UlFcnt can be set.
+	d.UlFcnt++
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+
+	return d.UlFcnt, nil
 }
 
 //ProcessDownlink processes a downlink message from the loraserver.
