@@ -384,7 +384,7 @@ func join() {
 
 func run() {
 
-	if !NSClient.Connected {
+	if !cNSClient.Connected {
 		if mqttClient == nil {
 			err := connectClient()
 			if err != nil {
@@ -500,10 +500,10 @@ func run() {
 		//Now send an uplink
 		var ulfc uint32 = 0
 		err = nil
-		if !NSClient.Connected {
+		if !cNSClient.Connected {
 			ulfc, err = cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		} else {
-			ulfc, err = cDevice.UplinkUDP(NSClient.Server, NSClient.Port, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
+			ulfc, err = cDevice.UplinkUDP(cNSClient, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		}
 
 		if err != nil {

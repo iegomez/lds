@@ -5,16 +5,11 @@ import (
 
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
+	"github.com/iegomez/lds/lds"
 )
 
-type nsclient struct {
-	Connected bool
-	Server string
-	Port int
-}
-
-// NSClient is a direct NetworkServer connection handle
-var NSClient nsclient
+// cNSClient is a direct NetworkServer connection handle
+var cNSClient lds.NSClient
 
 type forwarder struct {
 	Server		string `toml:"nserver"`
@@ -31,7 +26,7 @@ func beginForwarderForm() {
 	if imgui.Button("Connect") {
 		forwarderConnect()
 	}
-	if NSClient.Connected {
+	if cNSClient.Connected {
 		if imgui.Button("Disconnect") {
 			forwarderDisconnect()
 		}
@@ -50,9 +45,9 @@ func forwarderConnect() error {
 		return err
 	}
 
-	NSClient.Server = config.Forwarder.Server
-	NSClient.Port = port
-	NSClient.Connected = true
+	cNSClient.Server = config.Forwarder.Server
+	cNSClient.Port = port
+	cNSClient.Connected = true
 	log.Infoln("UDP Forwarder Started (MQTT disabled)")
 	// TODO subscribe to downlinks
 
@@ -60,7 +55,7 @@ func forwarderConnect() error {
 }
 
 func forwarderDisconnect() error {
-	NSClient.Connected = false
+	cNSClient.Connected = false
 	log.Infoln("UDP Forwarder Stopped (MQTT back again")
 
 	return nil
