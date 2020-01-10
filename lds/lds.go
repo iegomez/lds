@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/base64"
 	"fmt"
 	"math"
 	"strconv"
@@ -174,6 +173,8 @@ func (d *Device) marshalPhyPayload(mType lorawan.MType, fPort uint8, rxInfo *gw.
 		fOpts[i] = macCommands[i]
 	}
 
+	log.Infof("Device address %v", d.DevAddr)
+
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
 			MType: mType,
@@ -328,10 +329,7 @@ func (d *Device) UplinkUDP(cClient NSClient, mType lorawan.MType, fPort uint8, r
 
 	log.Debugf("marshaled PHY payload: %v\n", string(phyBytes))
 
-	phyBase := base64.StdEncoding.EncodeToString(phyBytes)
-	message := []byte(phyBase)
-
-	err = cClient.send(message)
+	err = cClient.sendWithPayload(phyBytes, gwMAC, rxInfo, txInfo)
 	if err != nil {
 		log.Debugf("Unable to send UDP datagram: %s\n", err)
 		return d.UlFcnt, err

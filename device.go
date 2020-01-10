@@ -243,6 +243,7 @@ func setDevice() {
 		joinNonceEdit = int(cDevice.JoinNonce)
 		joinNonceEditS = strconv.Itoa(joinNonceEdit)
 	} else {
+		log.Info("Device reset")
 		cDevice.Reset()
 	}
 }
