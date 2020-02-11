@@ -56,7 +56,7 @@ func forwarderConnect() error {
 
 func forwarderDisconnect() error {
 	cNSClient.Connected = false
-	log.Infoln("UDP Forwarder STopped (MQTT back again)")
+	log.Infoln("UDP Forwarder stopped (MQTT back again)")
 
 	return nil
 }
