@@ -243,6 +243,7 @@ func setDevice() {
 		joinNonceEdit = int(cDevice.JoinNonce)
 		joinNonceEditS = strconv.Itoa(joinNonceEdit)
 	} else {
+		log.Info("Device reset")
 		cDevice.Reset()
 	}
 }
@@ -384,13 +385,15 @@ func join() {
 
 func run() {
 
-	if mqttClient == nil {
-		err := connectClient()
-		if err != nil {
-			return
+	if !cNSClient.Connected {
+		if mqttClient == nil {
+			err := connectClient()
+			if err != nil {
+				return
+			}
+		} else if !mqttClient.IsConnected() {
+			log.Errorln("mqtt client not connected")
 		}
-	} else if !mqttClient.IsConnected() {
-		log.Errorln("mqtt client not connected")
 	}
 
 	setDevice()
@@ -496,7 +499,14 @@ func run() {
 		}
 
 		//Now send an uplink
-		ulfc, err := cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
+		var ulfc uint32
+		
+		if !cNSClient.Connected {
+			ulfc, err = cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
+		} else {
+			ulfc, err = cDevice.UplinkUDP(cNSClient, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
+		}
+
 		if err != nil {
 			log.Errorf("couldn't send uplink: %s", err)
 		} else {

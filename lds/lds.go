@@ -166,23 +166,14 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 
 }
 
-//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge.
-func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
-
-	//Get uplink frame counter.
-	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
-	uf, err := redisClient.Get(ulFcntKey).Result()
-	if err == nil {
-		ufn, err := strconv.Atoi(uf)
-		if err == nil {
-			d.UlFcnt = uint32(ufn)
-		}
-	}
+func (d *Device) marshalPhyPayload(mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) ([]byte, error) {
 
 	var fOpts = make([]lorawan.Payload, len(macCommands))
 	for i := 0; i < len(fOpts); i++ {
 		fOpts[i] = macCommands[i]
 	}
+
+	log.Infof("Device address %v", d.DevAddr)
 
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
@@ -203,25 +194,25 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 	if err := phy.EncryptFRMPayload(d.AppSKey); err != nil {
 		log.Debugf("encrypt frm payload: %s", err)
-		return d.UlFcnt, err
+		return nil, err
 	}
 
 	if d.MACVersion == lorawan.LoRaWAN1_0 {
 		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey); err != nil {
 			log.Debugf("set uplink mic error: %s", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 		phy.ValidateUplinkDataMIC(lorawan.LoRaWAN1_0, 0, 0, 0, d.NwkSEncKey, d.NwkSEncKey)
 	} else if d.MACVersion == lorawan.LoRaWAN1_1 {
 		//Get the band.
 		b, err := band.GetConfig(bandName, false, lorawan.DwellTime400ms)
 		if err != nil {
-			return d.UlFcnt, err
+			return nil, err
 		}
 
 		txDR, err := b.GetDataRateIndex(true, dataRate)
 		if err != nil {
-			return d.UlFcnt, err
+			return nil, err
 		}
 		//Get tx ch.
 		var txCh int
@@ -233,7 +224,7 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 			c, err := b.GetUplinkChannel(i)
 			if err != nil {
-				return d.UlFcnt, err
+				return nil, err
 			}
 
 			// there could be multiple channels using the same frequency, but with different data-rates.
@@ -247,23 +238,41 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 		//Encrypt fOPts.
 		if err := phy.EncryptFOpts(d.NwkSEncKey); err != nil {
 			log.Errorf("encrypt fopts error: %s", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 
 		//Now set the MIC.
 		if err := phy.SetUplinkDataMIC(lorawan.LoRaWAN1_1, d.UlFcnt, uint8(txDR), uint8(txCh), d.FNwkSIntKey, d.SNwkSIntKey); err != nil {
 			log.Errorf("set uplink mic error: %s", err)
-			return d.UlFcnt, err
+			return nil, err
 		}
 
 	} else {
-		return d.UlFcnt, errors.New("unknown lorawan version")
+		return nil, errors.New("unknown lorawan version")
 	}
 
 	phyBytes, err := phy.MarshalBinary()
+	return phyBytes, err
+}
+
+//Uplink sends an uplink message as if it was sent from a lora-gateway-bridge.
+func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
+
+	//Get uplink frame counter.
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	uf, err := redisClient.Get(ulFcntKey).Result()
+	if err == nil {
+		ufn, err := strconv.Atoi(uf)
+		if err == nil {
+			d.UlFcnt = uint32(ufn)
+		}
+	}
+
+	phyBytes, err := d.marshalPhyPayload(mType, fPort, rxInfo, txInfo, payload, gwMAC, bandName, dataRate, macCommands, fCtrl)
+
 	if err != nil {
 		if err != nil {
-			log.Debugf("marshal binary error: %s\n", err)
+			log.Debugf("marshal PHY payload error: %s\n", err)
 			return d.UlFcnt, err
 		}
 	}
@@ -296,7 +305,41 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 
 	return d.UlFcnt, nil
+}
 
+//UplinkUDP sends an uplink message via raw `packet-forwarder` protocol
+func (d *Device) UplinkUDP(cClient NSClient, mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) (uint32, error) {
+
+	//Get uplink frame counter.
+	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
+	uf, err := redisClient.Get(ulFcntKey).Result()
+	if err == nil {
+		ufn, err := strconv.Atoi(uf)
+		if err == nil {
+			d.UlFcnt = uint32(ufn)
+		}
+	}
+
+	phyBytes, err := d.marshalPhyPayload(mType, fPort, rxInfo, txInfo, payload, gwMAC, bandName, dataRate, macCommands, fCtrl)
+
+	if err != nil {
+		log.Debugf("marshal PHY payload error: %s\n", err)
+		return d.UlFcnt, err
+	}
+
+	log.Debugf("marshaled PHY payload: %v\n", string(phyBytes))
+
+	err = cClient.sendWithPayload(phyBytes, gwMAC, rxInfo, txInfo)
+	if err != nil {
+		log.Debugf("Unable to send UDP datagram: %s\n", err)
+		return d.UlFcnt, err
+	}
+
+	//Message was sent, UlFcnt can be set.
+	d.UlFcnt++
+	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+
+	return d.UlFcnt, nil
 }
 
 //ProcessDownlink processes a downlink message from the loraserver.
