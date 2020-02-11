@@ -7,7 +7,7 @@ It has a simple but complete GUI built with [imgui-go](https://github.com/inkybl
 
 Please report any bug or request new features by filing and issue.
 
-This program was also extended to generate raw PACKET FORWARDER UDP-based protocol as alternative transport, to be used with general LoRaWAN netfork server (e.g. [lorawan-server](https://github.com/gotthardp/lorawan-server)). Use `forwarder` configuration section to enable.
+This program was also extended to generate raw PACKET FORWARDER UDP-based protocol as alternative transport, to be used with general LoRaWAN network server (e.g. [lorawan-server](https://github.com/gotthardp/lorawan-server)). Use `forwarder` configuration section to enable.
 
 ![](images/new-gui.png?raw=true)
 

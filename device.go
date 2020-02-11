@@ -499,8 +499,8 @@ func run() {
 		}
 
 		//Now send an uplink
-		var ulfc uint32 = 0
-		err = nil
+		var ulfc uint32
+		
 		if !cNSClient.Connected {
 			ulfc, err = cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		} else {

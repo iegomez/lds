@@ -41,14 +41,14 @@ func forwarderConnect() error {
 	port, err := strconv.Atoi(config.Forwarder.Port)
 
 	if err != nil {
-		log.Warn("Bad Network server UDP port")
+		log.Warn("network server UDP port must be a number")
 		return err
 	}
 
 	cNSClient.Server = config.Forwarder.Server
 	cNSClient.Port = port
 	cNSClient.Connected = true
-	log.Infoln("UDP Forwarder Started (MQTT disabled)")
+	log.Infoln("UDP Forwarder started (MQTT disabled)")
 	// TODO subscribe to downlinks
 
 	return nil
@@ -56,7 +56,7 @@ func forwarderConnect() error {
 
 func forwarderDisconnect() error {
 	cNSClient.Connected = false
-	log.Infoln("UDP Forwarder Stopped (MQTT back again")
+	log.Infoln("UDP Forwarder STopped (MQTT back again)")
 
 	return nil
 }
