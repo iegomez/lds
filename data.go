@@ -4,14 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/inkyblackness/imgui-go"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-
-	"time"
-
 	"github.com/robertkrimen/otto"
+	log "github.com/sirupsen/logrus"
 )
 
 type encodedType struct {

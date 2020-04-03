@@ -5,6 +5,7 @@ import (
 
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/iegomez/lds/lds"
 )
 
@@ -12,8 +13,8 @@ import (
 var cNSClient lds.NSClient
 
 type forwarder struct {
-	Server		string `toml:"nserver"`
-	Port		string `toml:"nsport"`
+	Server string `toml:"nserver"`
+	Port   string `toml:"nsport"`
 }
 
 func beginForwarderForm() {
@@ -60,4 +61,3 @@ func forwarderDisconnect() error {
 
 	return nil
 }
-

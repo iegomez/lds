@@ -4,9 +4,8 @@ import (
 	"crypto/aes"
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/brocaar/lorawan"
+	"github.com/pkg/errors"
 )
 
 // getFNwkSIntKey returns the FNwkSIntKey.
