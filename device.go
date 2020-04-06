@@ -3,18 +3,17 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
-	"strconv"
-
-	lwBand "github.com/brocaar/lorawan/band"
-
-	"github.com/brocaar/loraserver/api/gw"
+	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/lorawan"
+	lwBand "github.com/brocaar/lorawan/band"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/iegomez/lds/lds"
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/iegomez/lds/lds"
 )
 
 // Marshalers, versions, and message types.
@@ -500,7 +499,7 @@ func run() {
 
 		//Now send an uplink
 		var ulfc uint32
-		
+
 		if !cNSClient.Connected {
 			ulfc, err = cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		} else {

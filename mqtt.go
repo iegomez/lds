@@ -5,9 +5,10 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
-	"github.com/iegomez/lds/lds"
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/iegomez/lds/lds"
 )
 
 var mqttClient paho.Client

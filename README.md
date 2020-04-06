@@ -1,7 +1,7 @@
-## Loraserver device simulator
+# LoRa device simulator
 
-This is an utility program to simulate devices for the [loraserver](https://loraserver.io) project.  Basically, it acts as a `lora-gateway-bridge` middleman, publishing and receiving messages through MQTT.
-It supports all bands and configurations LoRaWAN versions 1.0 and 1.1 and is compatible with newest version of `loraserver` modules (v3 test).
+This is an utility program to simulate devices for the [ChirpStack](https://chirpstack.io) project.  Basically, it acts as a `chirpstack-gateway-bridge` middleman, publishing and receiving messages through MQTT.
+It supports all bands and configurations LoRaWAN versions 1.0 and 1.1 and is compatible with newest version of `ChirpStack Network Server` modules (v3 test).
 
 It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
 

@@ -1,46 +1,46 @@
 package lds
 
 import (
-	"net"
-	"fmt"
-	"time"
-	"errors"
-	"math/rand"
 	"bytes"
-	"encoding/json"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math/rand"
+	"net"
+	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/golang/protobuf/ptypes/duration"
-	"github.com/brocaar/loraserver/api/gw"
+	log "github.com/sirupsen/logrus"
 )
 
 // NSClient is a raw UDP client
 type NSClient struct {
 	Connected bool
-	Server string
-	Port int
+	Server    string
+	Port      int
 }
 
 type pfpacket struct {
-	Time string		`json:"time"`
-	TMST uint64		`json:"tmst"`
-	Chan uint32		`json:"chan"`
-	RFCH uint32		`json:"rfch"`
-	Freq float32	`json:"freq"`
-	Stat int32		`json:"stat"`
-	Modu string		`json:"modu"`
-	DatR string		`json:"datr"`
-	CorR string		`json:"codr"`
-	RSSI int32		`json:"rssi"`
-	LSNR float64	`json:"lsnr"`
-	Size uint32		`json:"size"`
-	Data string		`json:"data"`
+	Time string  `json:"time"`
+	TMST uint64  `json:"tmst"`
+	Chan uint32  `json:"chan"`
+	RFCH uint32  `json:"rfch"`
+	Freq float32 `json:"freq"`
+	Stat int32   `json:"stat"`
+	Modu string  `json:"modu"`
+	DatR string  `json:"datr"`
+	CorR string  `json:"codr"`
+	RSSI int32   `json:"rssi"`
+	LSNR float64 `json:"lsnr"`
+	Size uint32  `json:"size"`
+	Data string  `json:"data"`
 }
 
 type pfproto struct {
-	RXPK []pfpacket		`json:"rxpk"`
+	RXPK []pfpacket `json:"rxpk"`
 }
 
 func (client *NSClient) send(bytes []byte) error {
@@ -56,7 +56,7 @@ func (client *NSClient) send(bytes []byte) error {
 	}
 
 	conn, err := net.DialUDP("udp", nil, &addr)
- 
+
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (client *NSClient) send(bytes []byte) error {
 }
 
 func toMilliseconds(d *duration.Duration) uint64 {
-	return uint64(d.Seconds) * 1000 + uint64(d.Nanos) / 1000
+	return uint64(d.Seconds)*1000 + uint64(d.Nanos)/1000
 }
 
 func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
@@ -93,7 +93,7 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 	packet.Size = uint32(len(payload))
 	packet.Data = phyBase
 
-	proto := pfproto { RXPK: []pfpacket{ packet } }
+	proto := pfproto{RXPK: []pfpacket{packet}}
 
 	packetJSON, err := json.Marshal(proto)
 
@@ -108,7 +108,7 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 	tokenlsb := byte(token & 0x00FF)
 	tokenmsb := byte((token & 0xFF00) >> 8)
 	id := byte(0x00)
-	header := []byte{ version, tokenmsb, tokenlsb, id }
+	header := []byte{version, tokenmsb, tokenlsb, id}
 
 	gwbytes, err := hex.DecodeString(gwMAC)
 

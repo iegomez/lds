@@ -9,19 +9,15 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/pkg/errors"
-
-	log "github.com/sirupsen/logrus"
-
-	"github.com/brocaar/lorawan/band"
-
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
-
-	"github.com/brocaar/loraserver/api/gw"
+	"github.com/brocaar/chirpstack-api/go/v3/gw"
 	"github.com/brocaar/lorawan"
+	"github.com/brocaar/lorawan/band"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/go-redis/redis"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 //Device holds device keys, addr, eui and fcnt.

@@ -2,21 +2,19 @@ package main
 
 import (
 	"encoding/hex"
-	"math/rand"
-
-	"github.com/golang/protobuf/ptypes"
-	"github.com/iegomez/lds/lds"
-
 	"flag"
+	"math/rand"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/brocaar/loraserver/api/gw"
 	"github.com/brocaar/lorawan"
 	lwband "github.com/brocaar/lorawan/band"
-
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/iegomez/lds/lds"
 )
 
 type mqtt struct {

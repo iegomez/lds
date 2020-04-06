@@ -15,10 +15,10 @@ import (
 	"github.com/brocaar/lorawan"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
-	"github.com/iegomez/lds/lds"
 	"github.com/inkyblackness/imgui-go"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/iegomez/lds/lds"
 )
 
 type redisConf struct {
