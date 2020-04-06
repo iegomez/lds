@@ -9,6 +9,10 @@ log_level = "info"
   # Downlink topic. %s will be replaced with the gateway mac.
   downlink_topic="gateway/%s/command/down"
 
+[forwarder]
+  nserver = "127.0.0.1"
+  nsport = "1680"
+
 [gateway]
   mac = "b827ebfffe9448d0"
 

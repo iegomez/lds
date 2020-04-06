@@ -80,7 +80,6 @@ func beginDeviceForm() {
 		for _, marshaler := range marshalers {
 			if imgui.SelectableV(marshaler, marshaler == config.Device.Marshaler, 0, imgui.Vec2{}) {
 				config.Device.Marshaler = marshaler
-				cDevice.SetMarshaler(config.Device.Marshaler)
 			}
 		}
 		imgui.EndCombo()
@@ -177,6 +176,7 @@ func setDevice() {
 
 	devEUI, err := lds.HexToEUI(config.Device.DevEUI)
 	if err != nil {
+		log.Errorf("devEUI error: %s", err)
 		return
 	}
 
@@ -185,14 +185,17 @@ func setDevice() {
 
 	appKey, err := lds.HexToKey(appHexKey)
 	if err != nil {
+		log.Errorf("appKey error: %s", err)
 		return
 	}
 	nwkKey, err := lds.HexToKey(nwkHexKey)
 	if err != nil {
+		log.Errorf("nwkKey error: %s", err)
 		return
 	}
 	joinEUI, err := lds.HexToEUI(config.Device.JoinEUI)
 	if err != nil {
+		log.Errorf("joinEUI error: %s", err)
 		return
 	}
 
@@ -326,6 +329,7 @@ func join() {
 		}
 	} else if !mqttClient.IsConnected() {
 		log.Errorln("mqtt client not connected")
+		return
 	}
 
 	//Always set device to get any changes to the configuration.
@@ -372,6 +376,12 @@ func join() {
 		ModulationInfo: umi,
 	}
 
+	if cDevice == nil {
+		fmt.Println("device null 2")
+	} else {
+		fmt.Println("device not null 2")
+	}
+
 	err = cDevice.Join(mqttClient, config.MQTT.UplinkTopic, config.GW.MAC, &urx, &utx)
 
 	if err != nil {
@@ -379,7 +389,6 @@ func join() {
 	} else {
 		log.Println("join sent")
 	}
-
 }
 
 func run() {
@@ -392,6 +401,7 @@ func run() {
 			}
 		} else if !mqttClient.IsConnected() {
 			log.Errorln("mqtt client not connected")
+			return
 		}
 	}
 
@@ -521,5 +531,4 @@ func run() {
 		time.Sleep(time.Duration(interval) * time.Second)
 
 	}
-
 }
