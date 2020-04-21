@@ -245,8 +245,15 @@ func setDevice() {
 		joinNonceEdit = int(cDevice.JoinNonce)
 		joinNonceEditS = strconv.Itoa(joinNonceEdit)
 	} else {
-		log.Info("Device reset")
-		cDevice.Reset()
+		
+		if config.Device.Profile == "ABP" {
+			config.Device.DevAddress = lds.DevAddressToHex(devAddr)
+
+		} else {
+
+			log.Info("Device reset")
+			cDevice.Reset()
+		}
 	}
 }
 
