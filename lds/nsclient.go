@@ -80,7 +80,7 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 
 	packet := pfpacket{}
 	packet.Time = utc
-	packet.TMST = toMilliseconds(gps)
+	packet.TMST = toMilliseconds(gps) / 1000
 	packet.Chan = rxInfo.GetChannel()
 	packet.RFCH = rxInfo.GetRfChain()
 	packet.Freq = float32(txInfo.GetFrequency()) / 1000000.0
