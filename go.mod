@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/atotto/clipboard v0.1.2
-	github.com/brocaar/chirpstack-api/go/v3 v3.3.1
+	github.com/brocaar/chirpstack-api/go/ v3.3.1
 	github.com/brocaar/loraserver v0.0.0-20190429071653-f428e15194fb
 	github.com/brocaar/lorawan v0.0.0-20190308082318-5ed881e0a2d7
 	github.com/eclipse/paho.mqtt.golang v1.2.0

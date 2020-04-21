@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/brocaar/chirpstack-api/go/v3/gw"
+	"github.com/brocaar/chirpstack-api/go/gw"
 	"github.com/brocaar/lorawan"
 	lwBand "github.com/brocaar/lorawan/band"
 	"github.com/golang/protobuf/ptypes"
@@ -210,9 +210,27 @@ func setDevice() {
 			AppKey:        appKey,
 			NwkKey:        nwkKey,
 			JoinEUI:       joinEUI,
+			Profile:       config.Device.Profile,
 			Major:         lorawan.Major(config.Device.Major),
 			MACVersion:    lorawan.MACVersion(config.Device.MACVersion),
 			SkipFCntCheck: config.Device.SkipFCntCheck,
+		}
+
+		//Get redis info.
+		if cDevice.GetInfo() {
+			config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
+			config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
+			config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
+			config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
+			config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+			ulFcntEdit = int(cDevice.UlFcnt)
+			ulFcntEditS = strconv.Itoa(ulFcntEdit)
+			dlFcntEdit = int(cDevice.DlFcnt)
+			dlFcntEditS = strconv.Itoa(dlFcntEdit)
+			devNonceEdit = int(cDevice.DevNonce)
+			devNonceEditS = strconv.Itoa(devNonceEdit)
+			joinNonceEdit = int(cDevice.JoinNonce)
+			joinNonceEditS = strconv.Itoa(joinNonceEdit)
 		}
 	} else {
 		cDevice.DevEUI = devEUI
@@ -224,30 +242,12 @@ func setDevice() {
 		cDevice.AppKey = appKey
 		cDevice.NwkKey = nwkKey
 		cDevice.JoinEUI = joinEUI
+		cDevice.Profile = config.Device.Profile
 		cDevice.Major = lorawan.Major(config.Device.Major)
 		cDevice.MACVersion = lorawan.MACVersion(config.Device.MACVersion)
 		cDevice.SkipFCntCheck = config.Device.SkipFCntCheck
 	}
 	cDevice.SetMarshaler(config.Device.Marshaler)
-	//Get redis info.
-	if cDevice.GetInfo() {
-		config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
-		config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
-		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
-		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
-		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
-		ulFcntEdit = int(cDevice.UlFcnt)
-		ulFcntEditS = strconv.Itoa(ulFcntEdit)
-		dlFcntEdit = int(cDevice.DlFcnt)
-		dlFcntEditS = strconv.Itoa(dlFcntEdit)
-		devNonceEdit = int(cDevice.DevNonce)
-		devNonceEditS = strconv.Itoa(devNonceEdit)
-		joinNonceEdit = int(cDevice.JoinNonce)
-		joinNonceEditS = strconv.Itoa(joinNonceEdit)
-	} else {
-		log.Info("Device reset")
-		cDevice.Reset()
-	}
 }
 
 func beginReset() {
@@ -273,11 +273,7 @@ func beginReset() {
 			if err != nil {
 				log.Errorln(err)
 			} else {
-				config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
-				config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
-				config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
-				config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
-				config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+				setDevice()
 				log.Infoln("device was reset")
 			}
 			imgui.CloseCurrentPopup()
@@ -374,12 +370,6 @@ func join() {
 	utx := gw.UplinkTXInfo{
 		Frequency:      uint32(config.RXInfo.Frequency),
 		ModulationInfo: umi,
-	}
-
-	if cDevice == nil {
-		fmt.Println("device null 2")
-	} else {
-		fmt.Println("device not null 2")
 	}
 
 	err = cDevice.Join(mqttClient, config.MQTT.UplinkTopic, config.GW.MAC, &urx, &utx)

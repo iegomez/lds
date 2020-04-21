@@ -11,7 +11,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/brocaar/chirpstack-api/go/v3/gw"
+	"github.com/brocaar/chirpstack-api/go/gw"
 	"github.com/golang/protobuf/ptypes/duration"
 	log "github.com/sirupsen/logrus"
 )
@@ -97,7 +97,7 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 
 	packetJSON, err := json.Marshal(proto)
 
-	log.Infof("Marshalled upstream JSON %s", packetJSON)
+	log.Debugf("Marshalled upstream JSON %s", packetJSON)
 
 	if err != nil {
 		return err

@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
-	"github.com/brocaar/chirpstack-api/go/v3/gw"
+	"github.com/brocaar/chirpstack-api/go/gw"
 	"github.com/brocaar/lorawan"
 	"github.com/brocaar/lorawan/band"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -48,6 +49,7 @@ var redisClient *redis.Client
 
 //StartRedis tries to connect to Redis (used for DevNonce and JoinNonce).
 func StartRedis(addr, password string, db int) error {
+	log.Debugf("Connecting to redis %s %s %s", addr, password, db)
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password,
@@ -100,6 +102,16 @@ func (d *Device) SetMarshaler(opt string) {
 			return json.Unmarshal(b, msg)
 		}
 	}
+}
+
+func (d *Device) RedisSet(key string, value interface{}, exp time.Duration) error {
+	log.Debugf("redis set: %s => %s", key, value)
+	res := redisClient.Set(key, value, exp)
+	_, err := res.Result()
+	if err != nil {
+		log.Errorf("redis set error: %s", err)
+	}
+	return err
 }
 
 //Join sends a join request for a given device (OTAA) and rxInfo.
@@ -170,6 +182,7 @@ func (d *Device) marshalPhyPayload(mType lorawan.MType, fPort uint8, rxInfo *gw.
 	}
 
 	log.Infof("Device address %v", d.DevAddr)
+	log.Debugf("Device network key %v", KeyToHex(d.NwkSEncKey))
 
 	phy := lorawan.PHYPayload{
 		MHDR: lorawan.MHDR{
@@ -298,7 +311,7 @@ func (d *Device) Uplink(client MQTT.Client, topicTemplate string, mType lorawan.
 
 	//Message was sent, UlFcnt can be set.
 	d.UlFcnt++
-	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+	d.RedisSet(ulFcntKey, d.UlFcnt, 0)
 
 	return d.UlFcnt, nil
 }
@@ -323,8 +336,6 @@ func (d *Device) UplinkUDP(cClient NSClient, mType lorawan.MType, fPort uint8, r
 		return d.UlFcnt, err
 	}
 
-	log.Debugf("marshaled PHY payload: %v\n", string(phyBytes))
-
 	err = cClient.sendWithPayload(phyBytes, gwMAC, rxInfo, txInfo)
 	if err != nil {
 		log.Debugf("Unable to send UDP datagram: %s\n", err)
@@ -333,7 +344,7 @@ func (d *Device) UplinkUDP(cClient NSClient, mType lorawan.MType, fPort uint8, r
 
 	//Message was sent, UlFcnt can be set.
 	d.UlFcnt++
-	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
+	d.RedisSet(ulFcntKey, d.UlFcnt, 0)
 
 	return d.UlFcnt, nil
 }
@@ -367,6 +378,7 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (strin
 func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv lorawan.MACVersion) (string, error) {
 	log.Infoln("processing join response")
 
+	log.Debugln("Network key on join: %s", KeyToHex(d.NwkKey))
 	err := phy.DecryptJoinAcceptPayload(d.NwkKey)
 	if err != nil {
 		log.Errorf("can't decrypt join accept: %s", err)
@@ -424,7 +436,7 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	}
 	d.JoinNonce = jap.JoinNonce
 	log.Infof("setting join nonce: %d", d.JoinNonce)
-	redisClient.Set(joinNonceKey, uint16(jap.JoinNonce), 0)
+	d.RedisSet(joinNonceKey, uint16(jap.JoinNonce), 0)
 
 	d.FNwkSIntKey, err = getFNwkSIntKey(jap.DLSettings.OptNeg, d.NwkKey, jap.HomeNetID, d.JoinEUI, jap.JoinNonce, d.DevNonce)
 	if d.MACVersion == 0 {
@@ -453,19 +465,19 @@ func (d *Device) processJoinResponse(phy lorawan.PHYPayload, payload []byte, mv 
 	redisDevAddr := fmt.Sprintf("ul-devAddr-%s", d.DevEUI[:])
 	joinKey := fmt.Sprintf("join-%s", d.DevEUI[:])
 
-	redisClient.Set(redisFNwksSIntKey, KeyToHex(d.FNwkSIntKey), 0)
-	redisClient.Set(redisNwkSEncKey, KeyToHex(d.NwkSEncKey), 0)
-	redisClient.Set(redisSNwkSIntKey, KeyToHex(d.SNwkSIntKey), 0)
-	redisClient.Set(redisAppSKey, KeyToHex(d.AppSKey), 0)
-	redisClient.Set(redisDevAddr, DevAddressToHex(d.DevAddr), 0)
-	redisClient.Set(joinKey, "true", 0)
+	d.RedisSet(redisFNwksSIntKey, KeyToHex(d.FNwkSIntKey), 0)
+	d.RedisSet(redisNwkSEncKey, KeyToHex(d.NwkSEncKey), 0)
+	d.RedisSet(redisSNwkSIntKey, KeyToHex(d.SNwkSIntKey), 0)
+	d.RedisSet(redisAppSKey, KeyToHex(d.AppSKey), 0)
+	d.RedisSet(redisDevAddr, DevAddressToHex(d.DevAddr), 0)
+	d.RedisSet(joinKey, "true", 0)
 
 	//Set frame counters to 0.
 	ulFcntKey := fmt.Sprintf("ul-fcnt-%s", d.DevEUI[:])
 	dlFcntKey := fmt.Sprintf("dl-fcnt-%s", d.DevEUI[:])
 
-	redisClient.Set(ulFcntKey, d.UlFcnt, 0)
-	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
+	d.RedisSet(ulFcntKey, d.UlFcnt, 0)
+	d.RedisSet(dlFcntKey, d.DlFcnt, 0)
 
 	log.Infoln("Join successful!")
 
@@ -485,7 +497,7 @@ func (d *Device) processDownlink(phy lorawan.PHYPayload, payload []byte, mv lora
 	}
 	//Set downlink frame counter.
 	d.DlFcnt++
-	redisClient.Set(dlFcntKey, d.DlFcnt, 0)
+	d.RedisSet(dlFcntKey, d.DlFcnt, 0)
 
 	//Validate MIC if frame counter validation is not disabled.
 	if !d.SkipFCntCheck {
@@ -600,24 +612,28 @@ func (d *Device) SetValues(ulFcnt, dlFcnt, devNonce, joinNonce int) error {
 	dlRes := redisClient.Set(dlFcntKey, d.DlFcnt, 0)
 	_, err := dlRes.Result()
 	if err != nil {
+		log.Errorf("redis set error: %s", err)
 		return err
 	}
 
 	ulRes := redisClient.Set(ulFcntKey, d.UlFcnt, 0)
 	_, err = ulRes.Result()
 	if err != nil {
+		log.Errorf("redis set error: %s", err)
 		return err
 	}
 
 	jnRes := redisClient.Set(joinNonceKey, uint16(d.JoinNonce), 0)
 	_, err = jnRes.Result()
 	if err != nil {
+		log.Errorf("redis set error: %s", err)
 		return err
 	}
 
 	dnRes := redisClient.Set(devNonceKey, uint16(d.DevNonce), 0)
 	_, err = dnRes.Result()
 	if err != nil {
+		log.Errorf("redis set error: %s", err)
 		return err
 	}
 	return nil
@@ -688,47 +704,59 @@ func (d *Device) GetInfo() bool {
 
 	fNwksSIntKey, err := redisClient.Get(redisFNwksSIntKey).Result()
 	if err != nil {
+		log.Errorf("redis convert error (fNwksSIntKey): %s", err)
 		return false
 	}
 	nwkSEncKey, err := redisClient.Get(redisNwkSEncKey).Result()
 	if err != nil {
+		log.Errorf("redis convert error (nwkSEncKey): %s", err)
 		return false
 	}
 	sNwkSIntKey, err := redisClient.Get(redisSNwkSIntKey).Result()
 	if err != nil {
+		log.Errorf("redis convert error (sNwkSIntKey): %s", err)
 		return false
 	}
 	appSKey, err := redisClient.Get(redisAppSKey).Result()
 	if err != nil {
+		log.Errorf("redis convert error (appSKey): %s", err)
 		return false
 	}
 	devAddr, err := redisClient.Get(redisDevAddr).Result()
 	if err != nil {
+		log.Errorf("redis convert error (devAddr): %s", err)
 		return false
 	}
 	d.FNwkSIntKey, err = HexToKey(fNwksSIntKey)
 	if err != nil {
+		log.Errorf("key convert error (FNwkSIntKey): %s", err)
 		return false
 	}
 	d.NwkSEncKey, err = HexToKey(nwkSEncKey)
 	if err != nil {
+		log.Errorf("key convert error (NwkSEncKey): %s", err)
 		return false
 	}
 	d.SNwkSIntKey, err = HexToKey(sNwkSIntKey)
 	if err != nil {
+		log.Errorf("key convert error (SNwkSIntKey): %s", err)
 		return false
 	}
 	d.AppSKey, err = HexToKey(appSKey)
 	if err != nil {
+		log.Errorf("key convert error (AppSKey): %s", err)
 		return false
 	}
 	d.DevAddr, err = HexToDevAddress(devAddr)
 	if err != nil {
+		log.Errorf("key convert error (DevAddr): %s", err)
 		return false
 	}
 	joined, err := redisClient.Get(joinKey).Result()
 	if err == nil && joined == "true" {
 		d.Joined = true
+	} else {
+		log.Errorf("key convert error (joined): %s", err)
 	}
 	return true
 }
