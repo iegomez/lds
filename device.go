@@ -383,7 +383,7 @@ func join() {
 
 func run() {
 
-	if !cNSClient.Connected {
+	if !cNSClient.IsConnected() {
 		if mqttClient == nil {
 			err := connectClient()
 			if err != nil {
@@ -500,7 +500,7 @@ func run() {
 		//Now send an uplink
 		var ulfc uint32
 
-		if !cNSClient.Connected {
+		if !cNSClient.IsConnected() {
 			ulfc, err = cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		} else {
 			ulfc, err = cDevice.UplinkUDP(cNSClient, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
@@ -520,5 +520,25 @@ func run() {
 
 		time.Sleep(time.Duration(interval) * time.Second)
 
+	}
+}
+
+func onIncomingDownlink(payload []byte) {
+	if cDevice != nil {
+		dlMessage, err := cDevice.ProcessDownlink(payload, cDevice.MACVersion)
+		//Update keys when necessary.
+		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
+		config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
+		config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
+		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
+		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+		config.Device.Joined = cDevice.Joined
+		if err != nil {
+			log.Errorf("downlink error: %s", err)
+		} else {
+			log.Infof("received message: %s", dlMessage)
+		}
+		//Get redis info.
+		cDevice.GetInfo()
 	}
 }

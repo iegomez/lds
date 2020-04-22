@@ -27,7 +27,7 @@ func beginForwarderForm() {
 	if imgui.Button("Connect") {
 		forwarderConnect()
 	}
-	if cNSClient.Connected {
+	if cNSClient.IsConnected() {
 		if imgui.Button("Disconnect") {
 			forwarderDisconnect()
 		}
@@ -48,7 +48,7 @@ func forwarderConnect() error {
 
 	cNSClient.Server = config.Forwarder.Server
 	cNSClient.Port = port
-	cNSClient.Connected = true
+	cNSClient.Connect()
 	log.Infoln("UDP Forwarder started (MQTT disabled)")
 	// TODO subscribe to downlinks
 
@@ -56,7 +56,7 @@ func forwarderConnect() error {
 }
 
 func forwarderDisconnect() error {
-	cNSClient.Connected = false
+	cNSClient.Disconnect()
 	log.Infoln("UDP Forwarder stopped (MQTT back again)")
 
 	return nil

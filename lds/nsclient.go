@@ -14,13 +14,16 @@ import (
 	"github.com/brocaar/chirpstack-api/go/gw"
 	"github.com/golang/protobuf/ptypes/duration"
 	log "github.com/sirupsen/logrus"
+//	"github.com/tidwall/evio"
 )
 
 // NSClient is a raw UDP client
 type NSClient struct {
-	Connected bool
-	Server    string
-	Port      int
+	Server string
+	Port   int
+
+	connected bool
+//	udpEvents evio.Events
 }
 
 type pfpacket struct {
@@ -42,6 +45,22 @@ type pfpacket struct {
 
 type pfproto struct {
 	RXPK []pfpacket `json:"rxpk"`
+}
+
+func (client *NSClient) IsConnected() bool {
+	return client.connected
+}
+
+func (client *NSClient) Connect() error {
+	log.Infoln("UDP listening...")
+
+	client.connected = true
+	return nil
+}
+
+func (client *NSClient) Disconnect() error {
+	client.connected = false
+	return nil
 }
 
 func (client *NSClient) send(bytes []byte) error {

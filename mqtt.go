@@ -7,8 +7,6 @@ import (
 	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/iegomez/lds/lds"
 )
 
 var mqttClient paho.Client
@@ -63,30 +61,14 @@ func connectClient() error {
 	opts.SetClientID(fmt.Sprintf("lds-%d", time.Now().UnixNano()))
 
 	mqttClient = paho.NewClient(opts)
-	log.Infoln("connecting...")
+	log.Infoln("MQTT connecting...")
 	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		log.Errorf("connection error: %s", token.Error())
 		return token.Error()
 	}
 	log.Infoln("connection established")
 	mqttClient.Subscribe(fmt.Sprintf(config.MQTT.DownlinkTopic, config.GW.MAC), 1, func(c paho.Client, msg paho.Message) {
-		if cDevice != nil {
-			dlMessage, err := cDevice.ProcessDownlink(msg.Payload(), cDevice.MACVersion)
-			//Update keys when necessary.
-			config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
-			config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
-			config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
-			config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
-			config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
-			config.Device.Joined = cDevice.Joined
-			if err != nil {
-				log.Errorf("downlink error: %s", err)
-			} else {
-				log.Infof("received message: %s", dlMessage)
-			}
-			//Get redis info.
-			cDevice.GetInfo()
-		}
+		onIncomingDownlink(msg.Payload())
 	})
 	return nil
 }
