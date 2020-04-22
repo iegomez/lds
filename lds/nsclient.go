@@ -25,7 +25,8 @@ type NSClient struct {
 
 type pfpacket struct {
 	Time string  `json:"time"`
-	TMST uint64  `json:"tmst"`
+	TMMS uint64  `json:"tmms"`
+	TMST uint32  `json:"tmst"`
 	Chan uint32  `json:"chan"`
 	RFCH uint32  `json:"rfch"`
 	Freq float32 `json:"freq"`
@@ -80,7 +81,8 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 
 	packet := pfpacket{}
 	packet.Time = utc
-	packet.TMST = toMilliseconds(gps) / 1000
+	packet.TMMS = toMilliseconds(gps) / 1000
+	packet.TMST = uint32(toMilliseconds(gps) / 1000 / 1000)
 	packet.Chan = rxInfo.GetChannel()
 	packet.RFCH = rxInfo.GetRfChain()
 	packet.Freq = float32(txInfo.GetFrequency()) / 1000000.0
