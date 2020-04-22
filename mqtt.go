@@ -36,8 +36,10 @@ func beginMQTTForm() {
 	imgui.InputText("MAC", &config.GW.MAC)
 	imgui.InputText("Downlink topic", &config.MQTT.DownlinkTopic)
 	imgui.InputText("Uplink topic", &config.MQTT.UplinkTopic)
-	if imgui.Button("Connect") {
-		connectClient()
+	if !cNSClient.IsConnected() {
+		if imgui.Button("Connect") {
+			connectClient()
+		}
 	}
 	if mqttClient != nil && mqttClient.IsConnected() {
 		if imgui.Button("Disconnect") {

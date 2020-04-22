@@ -523,7 +523,9 @@ func run() {
 	}
 }
 
-func onIncomingDownlink(payload []byte) {
+func onIncomingDownlink(payload []byte) error {
+	log.Debugf("Incoming Downlink len=%d", len(payload))
+	err := error(nil)
 	if cDevice != nil {
 		dlMessage, err := cDevice.ProcessDownlink(payload, cDevice.MACVersion)
 		//Update keys when necessary.
@@ -541,4 +543,5 @@ func onIncomingDownlink(payload []byte) {
 		//Get redis info.
 		cDevice.GetInfo()
 	}
+	return err
 }

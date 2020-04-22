@@ -14,7 +14,7 @@ import (
 	"github.com/brocaar/chirpstack-api/go/gw"
 	"github.com/golang/protobuf/ptypes/duration"
 	log "github.com/sirupsen/logrus"
-//	"github.com/tidwall/evio"
+	"github.com/tidwall/evio"
 )
 
 // NSClient is a raw UDP client
@@ -23,7 +23,7 @@ type NSClient struct {
 	Port   int
 
 	connected bool
-//	udpEvents evio.Events
+	udpEvents evio.Events
 }
 
 type pfpacket struct {
@@ -47,19 +47,27 @@ type pfproto struct {
 	RXPK []pfpacket `json:"rxpk"`
 }
 
+// IsConnected checks if listening for incoming UDP
 func (client *NSClient) IsConnected() bool {
 	return client.connected
 }
 
-func (client *NSClient) Connect() error {
-	log.Infoln("UDP listening...")
+type udpPacketCallback func(payload []byte) error
+
+// Connect starts listening incoming UDP
+func (client *NSClient) Connect(onReceive udpPacketCallback) error {
+
+	client.udpEvents.Data = func(c evio.Conn, in []byte) (out []byte, action evio.Action) {
+		onReceive(in)
+		out = nil
+		return
+	}
+
+	bindpoint := fmt.Sprintf("udp://localhost:%d", client.Port)
+	log.Infoln("UDP listening bindpoint=", bindpoint)
+	go evio.Serve(client.udpEvents, bindpoint)
 
 	client.connected = true
-	return nil
-}
-
-func (client *NSClient) Disconnect() error {
-	client.connected = false
 	return nil
 }
 

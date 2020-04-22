@@ -104,6 +104,7 @@ func (d *Device) SetMarshaler(opt string) {
 	}
 }
 
+// RedisSet is wrapper around redis client
 func (d *Device) RedisSet(key string, value interface{}, exp time.Duration) error {
 	log.Debugf("redis set: %s => %s", key, value)
 	res := redisClient.Set(key, value, exp)
@@ -114,8 +115,8 @@ func (d *Device) RedisSet(key string, value interface{}, exp time.Duration) erro
 	return err
 }
 
-//Join sends a join request for a given device (OTAA) and rxInfo.
-func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
+// Join sends a join request for a given device (OTAA) and rxInfo.
+func (d *Device) marshalJoinPayload(gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) ([]byte, error) {
 
 	d.Joined = false
 	devNonceKey := fmt.Sprintf("dev-nonce-%s", d.DevEUI[:])
@@ -144,13 +145,18 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 	}
 
 	if err := joinPhy.SetUplinkJoinMIC(d.NwkKey); err != nil {
-		return err
+		return nil, err
 	}
 
 	joinStr, err := joinPhy.MarshalBinary()
-	if err != nil {
-		return err
-	}
+
+	return joinStr, err
+}
+
+// Join sends a join request for a given device (OTAA) and rxInfo.
+func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
+
+	joinStr, err := d.marshalJoinPayload(gwMac, rxInfo, txInfo)
 
 	message := &gw.UplinkFrame{
 		PhyPayload: joinStr,
@@ -171,7 +177,11 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 	pErr := publish(client, topic, b)
 
 	return pErr
+}
 
+// JoinUDP sends a join request for a given device (OTAA) and rxInfo via raw packet_forwarder protocol
+func (d *Device) JoinUDP(cClient NSClient, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
+	return nil
 }
 
 func (d *Device) marshalPhyPayload(mType lorawan.MType, fPort uint8, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo, payload []byte, gwMAC string, bandName band.Name, dataRate band.DataRate, macCommands []*lorawan.MACCommand, fCtrl lorawan.FCtrl) ([]byte, error) {
