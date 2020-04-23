@@ -1,13 +1,16 @@
 # LoRa device simulator
 
-This is an utility program to simulate devices for the [ChirpStack](https://chirpstack.io) project.  Basically, it acts as a `chirpstack-gateway-bridge` middleman, publishing and receiving messages through MQTT.
-It supports all bands and configurations LoRaWAN versions 1.0 and 1.1 and is compatible with newest version of `ChirpStack Network Server` modules (v3 test).
+This is an utility program to simulate LoRaWAN devices.
 
-It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
+It supports all bands and configurations LoRaWAN versions 1.0 and 1.1 and is compatible with newest versions of `ChirpStack Network Server` modules (v3 test) and `lorawan-server`.
 
-Please report any bug or request new features by filing and issue.
+For the [ChirpStack](https://chirpstack.io) project, it acts, basically, as a `chirpstack-gateway-bridge` middleman, publishing and receiving messages through MQTT.
 
 This program was also extended to generate raw PACKET FORWARDER UDP-based protocol as alternative transport, to be used with general LoRaWAN network server (e.g. [lorawan-server](https://github.com/gotthardp/lorawan-server)). Use `forwarder` configuration section to enable.
+
+It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as network server address and port or MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
+
+Please report any bug or request new features by filing and issue.
 
 ![](images/new-gui.png?raw=true)
 
