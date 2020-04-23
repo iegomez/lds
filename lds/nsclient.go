@@ -3,6 +3,7 @@ package lds
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -63,7 +64,7 @@ func (client *NSClient) Connect(onReceive udpPacketCallback) error {
 		return
 	}
 
-	bindpoint := fmt.Sprintf("udp://localhost:%d", client.Port)
+	bindpoint := fmt.Sprintf("udp://0.0.0.0:%d", client.Port)
 	log.Infoln("UDP listening bindpoint=", bindpoint)
 	go evio.Serve(client.udpEvents, bindpoint)
 
@@ -151,4 +152,32 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 	client.send(datagram)
 
 	return nil
+}
+
+// UDPParsePacket extract metadata and physial payload from a packet
+func UDPParsePacket(packet []byte, result *map[string]interface{}) (bool, error) {
+	var data struct {
+		version int8
+		token   int16
+		id      int8
+	}
+
+	buf := bytes.NewReader(packet)
+	err := binary.Read(buf, binary.LittleEndian, &data)
+
+	if err != nil {
+		return false, err
+	}
+
+	// PULL_RESP == 0x03
+	if data.id != 0x03 {
+		return false, nil
+	}
+
+	jsonBytes := packet[4:]
+	jsonString := string(jsonBytes)
+	fmt.Printf("Incoming JSON %s", jsonString)
+	*result = make(map[string]interface{})
+
+	return false, nil
 }

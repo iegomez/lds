@@ -158,6 +158,11 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 
 	joinStr, err := d.marshalJoinPayload(gwMac, rxInfo, txInfo)
 
+	if err != nil {
+		log.Errorf("Unable to marshal join payload: %s", err)
+		return err
+	}
+
 	message := &gw.UplinkFrame{
 		PhyPayload: joinStr,
 		RxInfo:     rxInfo,
@@ -181,6 +186,22 @@ func (d *Device) Join(client MQTT.Client, topicTemplate, gwMac string, rxInfo *g
 
 // JoinUDP sends a join request for a given device (OTAA) and rxInfo via raw packet_forwarder protocol
 func (d *Device) JoinUDP(cClient NSClient, gwMac string, rxInfo *gw.UplinkRXInfo, txInfo *gw.UplinkTXInfo) error {
+
+	phyBytes, err := d.marshalJoinPayload(gwMac, rxInfo, txInfo)
+
+	if err != nil {
+		log.Debugf("marshal PHY join payload error: %s\n", err)
+		return err
+	}
+
+	log.Debugln("Sending UDP join payload")
+	err = cClient.sendWithPayload(phyBytes, gwMac, rxInfo, txInfo)
+
+	if err != nil {
+		log.Errorf("Unable to marshal join payload: %s", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -360,16 +381,40 @@ func (d *Device) UplinkUDP(cClient NSClient, mType lorawan.MType, fPort uint8, r
 }
 
 //ProcessDownlink processes a downlink message from the loraserver.
-func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion) (string, error) {
+func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion, mqtt bool) (string, error) {
 	log.Debugf("original dlmessage: %s", string(dlMessage))
-	var df map[string]interface{}
-	err := json.Unmarshal(dlMessage, &df)
-	if err != nil {
-		return "", err
+
+	var payload []byte = nil
+	if mqtt {
+		var df map[string]interface{}
+
+		err := json.Unmarshal(dlMessage, &df)
+		if err != nil {
+			return "", err
+		}
+
+		payload = []byte(df["phyPayload"].(string))
+	} else {
+		log.Infof("Receved JOIN response %s", hex.EncodeToString(dlMessage))
+
+		var contents map[string]interface{}
+
+		result, err := UDPParsePacket(dlMessage, &contents)
+
+		if err != nil {
+			return "", err
+		}
+
+		if !result {
+			return "Service (non-PULL_RESP) ignored", nil
+		}
+
+		payload = contents["payload"].([]byte)
 	}
+
 	var phy lorawan.PHYPayload
-	payload := []byte(df["phyPayload"].(string))
-	//log.Infof("encrypted payload: %s", string(payload))
+	log.Debugf("encrypted payload: %s", string(payload))
+
 	if err := phy.UnmarshalText(payload); err != nil {
 		log.Error("failed at unmarshal")
 		return "", err
