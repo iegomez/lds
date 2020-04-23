@@ -88,7 +88,6 @@ func (client *NSClient) receiveUDP(onReceive udpPacketCallback) {
 
 	for true {
 		size, _, err := client.connexion.ReadFromUDP(buffer)
-		fmt.Printf("%d", size)
 
 		if size <= 0 {
 			log.Warningf("Incoming packet size %d", size)
@@ -196,18 +195,18 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 }
 
 // UDPParsePacket extract metadata and physial payload from a packet
-func UDPParsePacket(packet []byte, result *map[string]interface{}) (bool, error) {
+func UDPParsePacket(packet []byte, result *map[string]interface{}) (bool, string, error) {
 
 	if len(packet) < 4 {
 		log.Warningf("Bad incoming packet len %d", len(packet))
-		return false, nil
+		return false, "", nil
 	}
 
 	version := int8(packet[0])
 
 	if version != 0x02 {
 		log.Warningf("Bad incoming version %d", version)
-		return false, nil
+		return false, "", nil
 	}
 
 	token := int16(packet[1]) + int16(packet[2])<<8
@@ -217,13 +216,28 @@ func UDPParsePacket(packet []byte, result *map[string]interface{}) (bool, error)
 
 	// PULL_RESP == 0x03
 	if id != 0x03 {
-		return false, nil
+		return false, "", nil
 	}
 
 	jsonBytes := packet[4:]
-	jsonString := string(jsonBytes)
-	fmt.Printf("Incoming JSON %s", jsonString)
-	*result = make(map[string]interface{})
+	log.Debugf("Incoming JSON %s", string(jsonBytes))
 
-	return false, nil
+	*result = make(map[string]interface{})
+	json.Unmarshal(jsonBytes, result)
+
+	if (*result)["txpk"] == nil {
+		log.Warningf("BAD JSON 'txpk'")
+		return false, "", nil
+	}
+
+	txpk := (*result)["txpk"].(map[string]interface{})
+
+	if txpk["data"] == nil {
+		log.Warningf("BAD JSON 'data'")
+		return false, "", nil
+	}
+
+	phyBase := txpk["data"].(string)
+
+	return true, phyBase, nil
 }

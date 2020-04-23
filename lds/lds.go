@@ -397,7 +397,7 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion, mqtt b
 	} else {
 		var contents map[string]interface{}
 
-		result, err := UDPParsePacket(dlMessage, &contents)
+		result, payloadBase, err := UDPParsePacket(dlMessage, &contents)
 
 		if err != nil {
 			return "", err
@@ -407,7 +407,7 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion, mqtt b
 			return "Service (non-PULL_RESP) ignored", nil
 		}
 
-		payload = contents["payload"].([]byte)
+		payload = []byte(payloadBase)
 	}
 
 	var phy lorawan.PHYPayload
