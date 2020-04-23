@@ -49,7 +49,7 @@ func forwarderConnect() error {
 
 	cNSClient.Server = config.Forwarder.Server
 	cNSClient.Port = port
-	cNSClient.Connect(onIncomingDownlink)
+	cNSClient.Connect(config.GW.MAC, onIncomingDownlink)
 	log.Infoln("UDP Forwarder started (MQTT disabled)")
 
 	return nil

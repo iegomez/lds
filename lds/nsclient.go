@@ -3,7 +3,6 @@ package lds
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,7 +14,6 @@ import (
 	"github.com/brocaar/chirpstack-api/go/gw"
 	"github.com/golang/protobuf/ptypes/duration"
 	log "github.com/sirupsen/logrus"
-	"github.com/tidwall/evio"
 )
 
 // NSClient is a raw UDP client
@@ -24,7 +22,7 @@ type NSClient struct {
 	Port   int
 
 	connected bool
-	udpEvents evio.Events
+	connexion *net.UDPConn
 }
 
 type pfpacket struct {
@@ -56,23 +54,8 @@ func (client *NSClient) IsConnected() bool {
 type udpPacketCallback func(payload []byte) error
 
 // Connect starts listening incoming UDP
-func (client *NSClient) Connect(onReceive udpPacketCallback) error {
+func (client *NSClient) Connect(gwMAC string, onReceive udpPacketCallback) error {
 
-	client.udpEvents.Data = func(c evio.Conn, in []byte) (out []byte, action evio.Action) {
-		onReceive(in)
-		out = nil
-		return
-	}
-
-	bindpoint := fmt.Sprintf("udp://0.0.0.0:%d", client.Port)
-	log.Infoln("UDP listening bindpoint=", bindpoint)
-	go evio.Serve(client.udpEvents, bindpoint)
-
-	client.connected = true
-	return nil
-}
-
-func (client *NSClient) send(bytes []byte) error {
 	ip := net.ParseIP(client.Server)
 
 	if ip == nil {
@@ -89,9 +72,74 @@ func (client *NSClient) send(bytes []byte) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	client.connexion = conn
 
-	_, err = conn.Write(bytes)
+	log.Infoln("UDP listening bindpoint=%s", conn.LocalAddr())
+	go client.receiveUDP(onReceive)
+	go client.sendPullData(gwMAC)
+
+	client.connected = true
+	return nil
+}
+
+func (client *NSClient) receiveUDP(onReceive udpPacketCallback) {
+	defer client.connexion.Close()
+	buffer := make([]byte, 2048)
+
+	for true {
+		size, _, err := client.connexion.ReadFromUDP(buffer)
+		fmt.Printf("%d", size)
+
+		if size <= 0 {
+			log.Warningf("Incoming packet size %d", size)
+			continue
+		}
+
+		if err != nil {
+			log.Errorf("Unable to receive incoming packet %s", err)
+			continue
+		}
+
+		message := buffer[0:size]
+		onReceive(message)
+	}
+}
+
+func createGWHeader(id byte, gwMAC string) ([]byte, error) {
+	version := byte(0x02)
+	token := rand.Int()
+	tokenlsb := byte(token & 0x00FF)
+	tokenmsb := byte((token & 0xFF00) >> 8)
+	header := []byte{version, tokenmsb, tokenlsb, id}
+
+	gwbytes, err := hex.DecodeString(gwMAC)
+
+	if err != nil {
+		return nil, err
+	}
+
+	gwheader := bytes.Join([][]byte{header, gwbytes}, []byte{})
+
+	return gwheader, nil
+}
+
+func (client *NSClient) sendPullData(gwMAC string) {
+	for true {
+		datagram, err := createGWHeader(byte(0x02), gwMAC)
+
+		if err == nil {
+			log.Infoln("Sending PULL_DATA heartbeat")
+			client.send(datagram)
+		} else {
+			log.Errorf("Unable to create PULL_DATA packet: %s", err)
+		}
+
+		time.Sleep(time.Second * 10)
+	}
+}
+
+func (client *NSClient) send(bytes []byte) error {
+	_, err := client.connexion.Write(bytes)
 	return err
 }
 
@@ -133,21 +181,14 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 		return err
 	}
 
-	version := byte(0x02)
-	token := rand.Int()
-	tokenlsb := byte(token & 0x00FF)
-	tokenmsb := byte((token & 0xFF00) >> 8)
-	id := byte(0x00)
-	header := []byte{version, tokenmsb, tokenlsb, id}
-
-	gwbytes, err := hex.DecodeString(gwMAC)
+	gwheader, err := createGWHeader(0x00, gwMAC)
 
 	if err != nil {
 		return err
 	}
 
 	jsonbytes := []byte(packetJSON)
-	datagram := bytes.Join([][]byte{header, gwbytes, jsonbytes}, []byte{})
+	datagram := bytes.Join([][]byte{gwheader, jsonbytes}, []byte{})
 
 	client.send(datagram)
 
@@ -156,21 +197,26 @@ func (client *NSClient) sendWithPayload(payload []byte, gwMAC string, rxInfo *gw
 
 // UDPParsePacket extract metadata and physial payload from a packet
 func UDPParsePacket(packet []byte, result *map[string]interface{}) (bool, error) {
-	var data struct {
-		version int8
-		token   int16
-		id      int8
+
+	if len(packet) < 4 {
+		log.Warningf("Bad incoming packet len %d", len(packet))
+		return false, nil
 	}
 
-	buf := bytes.NewReader(packet)
-	err := binary.Read(buf, binary.LittleEndian, &data)
+	version := int8(packet[0])
 
-	if err != nil {
-		return false, err
+	if version != 0x02 {
+		log.Warningf("Bad incoming version %d", version)
+		return false, nil
 	}
+
+	token := int16(packet[1]) + int16(packet[2])<<8
+	id := int8(packet[3])
+
+	log.Debugf("Incoming message {%d, %d}", id, token)
 
 	// PULL_RESP == 0x03
-	if data.id != 0x03 {
+	if id != 0x03 {
 		return false, nil
 	}
 

@@ -395,8 +395,6 @@ func (d *Device) ProcessDownlink(dlMessage []byte, mv lorawan.MACVersion, mqtt b
 
 		payload = []byte(df["phyPayload"].(string))
 	} else {
-		log.Infof("Receved JOIN response %s", hex.EncodeToString(dlMessage))
-
 		var contents map[string]interface{}
 
 		result, err := UDPParsePacket(dlMessage, &contents)

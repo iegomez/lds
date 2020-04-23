@@ -15,10 +15,8 @@ require (
 	github.com/golang/protobuf v1.3.5
 	github.com/iegomez/lsp v0.0.0-20190702162050-add458041bb0
 	github.com/inkyblackness/imgui-go v1.7.0
-	github.com/kavu/go_reuseport v1.5.0 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/robertkrimen/otto v0.0.0-20180617131154-15f95af6e78d
 	github.com/sirupsen/logrus v1.4.2
-	github.com/tidwall/evio v1.0.7
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 )
