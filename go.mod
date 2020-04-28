@@ -3,7 +3,8 @@ module github.com/iegomez/lds
 go 1.12
 
 require (
-	gioui.org v0.0.0-20200427192911-22f964548b86
+	gioui.org v0.0.0-20200428125459-9842cbd30bfb
+	gioui.org/example v0.0.0-20200428125849-9218df1db767 // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/brocaar/chirpstack-api/go v0.0.0-20191211112942-a2d1c6285030
 	github.com/brocaar/loraserver v0.0.0-20190429071653-f428e15194fb

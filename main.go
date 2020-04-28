@@ -5,11 +5,7 @@ import (
     "fmt"
     "io"
     "os"
-    "strconv"
-    "strings"
 
-    "github.com/BurntSushi/toml"
-    "github.com/brocaar/lorawan"
     log "github.com/sirupsen/logrus"
 
     "gioui.org/app"
@@ -17,41 +13,6 @@ import (
     "gioui.org/layout"
     "gioui.org/widget/material"
     "gioui.org/font/gofont"
-
-    "github.com/iegomez/lds/lds"
-)
-
-type redisConf struct {
-    Addr     string `toml:"addr"`
-    Password string `toml:"password"`
-    DB       int    `toml:"db"`
-}
-
-type windowConf struct {
-    Width  int `toml:"width"`
-    Height int `toml:"height"`
-}
-
-type tomlConfig struct {
-    MQTT        mqtt           `toml:"mqtt"`
-    Forwarder   forwarder      `toml:"forwarder"`
-    Band        band           `toml:"band"`
-    Device      device         `toml:"device"`
-    GW          gateway        `toml:"gateway"`
-    DR          dataRate       `toml:"data_rate"`
-    RXInfo      rxInfo         `toml:"rx_info"`
-    RawPayload  rawPayload     `toml:"raw_payload"`
-    EncodedType []*encodedType `toml:"encoded_type"`
-    LogLevel    string         `toml:"log_level"`
-    RedisConf   redisConf      `toml:"redis"`
-    Window      windowConf     `toml:"window"`
-    Provisioner provisioner    `toml:"provisioner"`
-}
-
-// Configuration holders.
-var (
-    confFile *string
-    config   *tomlConfig
 )
 
 // This holds the "console" visible text, line number and history (so we can dump everything even when console has been cleared).
@@ -81,125 +42,6 @@ var (
     sendOnce bool
     interval int32
 )
-
-// Configuration files loading and saving.
-var (
-    openFile     bool
-    files        []os.FileInfo
-    saveFile     bool
-    saveFilename string
-    mwOpen       = true
-)
-
-func importConf() {
-
-    //When config hasn't been initialized we need to provide fresh zero instances with some defaults.
-    //Decoding the conf file will override any present option.
-    if config == nil {
-        cMqtt := mqtt{}
-
-        cForwarder := forwarder{}
-
-        cGw := gateway{}
-
-        cDev := device{
-            MType: lorawan.UnconfirmedDataUp,
-        }
-
-        cBand := band{}
-
-        cDr := dataRate{}
-
-        cRx := rxInfo{}
-
-        cPl := rawPayload{
-            MaxExecTime: 100,
-        }
-
-        et := []*encodedType{}
-
-        w := windowConf{
-            Width:  1200,
-            Height: 1000,
-        }
-
-        p := provisioner{}
-
-        config = &tomlConfig{
-            MQTT:        cMqtt,
-            Forwarder:   cForwarder,
-            Band:        cBand,
-            Device:      cDev,
-            GW:          cGw,
-            DR:          cDr,
-            RXInfo:      cRx,
-            RawPayload:  cPl,
-            EncodedType: et,
-            Window:      w,
-            Provisioner: p,
-        }
-    }
-
-    if _, err := toml.DecodeFile(*confFile, &config); err != nil {
-        log.Println(err)
-        return
-    }
-
-    l, err := log.ParseLevel(config.LogLevel)
-    if err != nil {
-        log.SetLevel(log.InfoLevel)
-    } else {
-        log.SetLevel(l)
-    }
-
-    //Try to set redis.
-    lds.StartRedis(config.RedisConf.Addr, config.RedisConf.Password, config.RedisConf.DB)
-
-    for i := 0; i < len(config.EncodedType); i++ {
-        config.EncodedType[i].ValueS = strconv.FormatFloat(config.EncodedType[i].Value, 'f', -1, 64)
-        config.EncodedType[i].MaxValueS = strconv.FormatFloat(config.EncodedType[i].MaxValue, 'f', -1, 64)
-        config.EncodedType[i].MinValueS = strconv.FormatFloat(config.EncodedType[i].MinValue, 'f', -1, 64)
-        config.EncodedType[i].NumBytesS = strconv.Itoa(config.EncodedType[i].NumBytes)
-    }
-
-    //Fill string representations of numeric values.
-    config.DR.BitRateS = strconv.Itoa(config.DR.BitRate)
-    config.RXInfo.ChannelS = strconv.Itoa(config.RXInfo.Channel)
-    config.RXInfo.CrcStatusS = strconv.Itoa(config.RXInfo.CrcStatus)
-    config.RXInfo.FrequencyS = strconv.Itoa(config.RXInfo.Frequency)
-    config.RXInfo.LoRASNRS = strconv.FormatFloat(config.RXInfo.LoRaSNR, 'f', -1, 64)
-    config.RXInfo.RfChainS = strconv.Itoa(config.RXInfo.RfChain)
-    config.RXInfo.RssiS = strconv.Itoa(config.RXInfo.Rssi)
-
-    //Set default script when it's not present.
-    if config.RawPayload.Script == "" {
-        config.RawPayload.Script = defaultScript
-    }
-    config.RawPayload.FPortS = strconv.Itoa(config.RawPayload.FPort)
-
-    //Set the device with the given options.
-    setDevice()
-}
-
-func exportConf(filename string) {
-    if !strings.Contains(filename, ".toml") {
-        filename = fmt.Sprintf("%s.toml", filename)
-    }
-    f, err := os.Create(filename)
-    if err != nil {
-        log.Errorf("export error: %s", err)
-        return
-    }
-    encoder := toml.NewEncoder(f)
-    err = encoder.Encode(config)
-    if err != nil {
-        log.Errorf("export error: %s", err)
-        return
-    }
-    log.Infof("exported conf file %s", f.Name())
-    *confFile = f.Name()
-
-}
 
 func beginMenu() {
 /*!	if imgui.BeginMainMenuBar() {
@@ -291,7 +133,9 @@ func beginOpenFile() {
         imgui.SameLine()
         if imgui.Button("Import") {
             //Import file.
-            importConf()
+			importConf()
+			resetGuiValues()
+			setDevice()
             imgui.CloseCurrentPopup()
             //Close popup.
         }
@@ -325,15 +169,9 @@ func beginSaveFile() {
     }*/
 }
 
-var (
-    w_mqttForm layout.FlexChild
-    w_forwarderForm layout.FlexChild
-    w_deviceForm layout.FlexChild
-    w_loraForm layout.FlexChild
-    w_controlForm layout.FlexChild
-    w_dataForm layout.FlexChild
-    w_outputForm layout.FlexChild
-)
+func resetGuiValues() {
+	forwarderResetGuiValues()
+}
 
 func mainWindow(gtx *layout.Context, th *material.Theme) {
     /*
@@ -351,26 +189,26 @@ func mainWindow(gtx *layout.Context, th *material.Theme) {
         beginProvisioner()
     */
 
-    w_mqttForm = mqttForm(gtx, th)
-    w_forwarderForm = forwarderForm(gtx, th)
-    w_deviceForm = deviceForm(gtx, th)
-    w_loraForm = loRaForm(gtx, th)
-    w_controlForm = controlForm(gtx, th)
-    w_dataForm = dataForm(gtx, th)
-    w_outputForm = outputForm(gtx, th)
+    wMqttForm := mqttForm(gtx, th)
+    wForwarderForm := forwarderForm(gtx, th)
+    wDeviceForm := deviceForm(gtx, th)
+    wLoraForm := loRaForm(gtx, th)
+    wControlForm := controlForm(gtx, th)
+    wDataForm := dataForm(gtx, th)
+    wOutputForm := outputForm(gtx, th)
 
-    left := func() {
-        layout.Flex{Axis: layout.Vertical}.Layout(gtx, w_mqttForm, w_forwarderForm, w_deviceForm, w_loraForm)
+    wLeft := func() {
+        layout.Flex{Axis: layout.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wDeviceForm, wLoraForm)
     }
 
-    right := func() {
-        layout.Flex{Axis: layout.Vertical}.Layout(gtx, w_controlForm, w_dataForm, w_outputForm)
+    wRight := func() {
+        layout.Flex{Axis: layout.Vertical}.Layout(gtx, wControlForm, wDataForm, wOutputForm)
     }
 
     layout.W.Layout(gtx, func() {
         layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-            layout.Rigid(left),
-            layout.Rigid(right))
+            layout.Rigid(wLeft),
+            layout.Rigid(wRight))
     })
 }
 
@@ -399,7 +237,9 @@ func main() {
     confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
     flag.Parse()
 
-    importConf()
+	importConf()
+	resetGuiValues()
+    setDevice()
         
     go func() {
         w := app.NewWindow()

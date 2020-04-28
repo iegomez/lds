@@ -13,9 +13,17 @@ type macCommandItem struct {
 }
 
 //We need some vars to store string representations of payload fields.
+
+// ResetIndMinorS - comment me
 var ResetIndMinorS string
+
+// RekeyIndMinorS - comment me
 var RekeyIndMinorS string
+
+// BatteryS - battery string
 var BatteryS string
+
+// MarginS - margin string
 var MarginS string
 
 var fCtrl lorawan.FCtrl
