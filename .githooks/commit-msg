@@ -1,0 +1,4 @@
+#!/bin/sh
+GIT_ROOT_DIR=`git rev-parse --show-toplevel`
+python ${GIT_ROOT_DIR}/.githooks/commit-msg.py $1
+

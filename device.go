@@ -138,6 +138,7 @@ func beginDeviceForm() {
 	if cDevice != nil {
 		imgui.Text(fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce))
 		imgui.Text(fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce))
+		imgui.Text(fmt.Sprintf("Joined: %t", cDevice.Joined))
 	}
 	imgui.End()
 }
@@ -318,14 +319,12 @@ func beginRedisValues() {
 }
 
 func join() {
-	if mqttClient == nil {
-		err := connectClient()
-		if err != nil {
+
+	if !cNSClient.IsConnected() {
+		if mqttClient == nil || !mqttClient.IsConnected() {
+			log.Errorln("Neither client is connected")
 			return
 		}
-	} else if !mqttClient.IsConnected() {
-		log.Errorln("mqtt client not connected")
-		return
 	}
 
 	//Always set device to get any changes to the configuration.
@@ -372,7 +371,11 @@ func join() {
 		ModulationInfo: umi,
 	}
 
-	err = cDevice.Join(mqttClient, config.MQTT.UplinkTopic, config.GW.MAC, &urx, &utx)
+	if !cNSClient.IsConnected() {
+		err = cDevice.Join(mqttClient, config.MQTT.UplinkTopic, config.GW.MAC, &urx, &utx)
+	} else {
+		err = cDevice.JoinUDP(cNSClient, config.GW.MAC, &urx, &utx)
+	}
 
 	if err != nil {
 		log.Errorf("join error: %s", err)
@@ -383,14 +386,9 @@ func join() {
 
 func run() {
 
-	if !cNSClient.Connected {
-		if mqttClient == nil {
-			err := connectClient()
-			if err != nil {
-				return
-			}
-		} else if !mqttClient.IsConnected() {
-			log.Errorln("mqtt client not connected")
+	if !cNSClient.IsConnected() {
+		if mqttClient == nil || !mqttClient.IsConnected() {
+			log.Errorln("Neither client is connected")
 			return
 		}
 	}
@@ -500,7 +498,7 @@ func run() {
 		//Now send an uplink
 		var ulfc uint32
 
-		if !cNSClient.Connected {
+		if !cNSClient.IsConnected() {
 			ulfc, err = cDevice.Uplink(mqttClient, config.MQTT.UplinkTopic, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
 		} else {
 			ulfc, err = cDevice.UplinkUDP(cNSClient, config.Device.MType, uint8(config.RawPayload.FPort), &urx, &utx, payload, config.GW.MAC, config.Band.Name, dataRate, fOpts, fCtrl)
@@ -521,4 +519,28 @@ func run() {
 		time.Sleep(time.Duration(interval) * time.Second)
 
 	}
+}
+
+func onIncomingDownlink(payload []byte) error {
+	log.Debugf("Incoming Downlink len=%d", len(payload))
+	err := error(nil)
+	if cDevice != nil {
+		mqtt := mqttClient != nil && mqttClient.IsConnected()
+		dlMessage, err := cDevice.ProcessDownlink(payload, cDevice.MACVersion, mqtt)
+		//Update keys when necessary.
+		config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
+		config.Device.FNwkSIntKey = lds.KeyToHex(cDevice.FNwkSIntKey)
+		config.Device.NwkSEncKey = lds.KeyToHex(cDevice.NwkSEncKey)
+		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
+		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
+		config.Device.Joined = cDevice.Joined
+		if err != nil {
+			log.Errorf("downlink error: %s", err)
+		} else {
+			log.Infof("received message: %s", dlMessage)
+		}
+		//Get redis info.
+		cDevice.GetInfo()
+	}
+	return err
 }

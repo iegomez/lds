@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"runtime"
@@ -334,7 +335,8 @@ func main() {
 	}
 	defer glfw.Terminate()
 
-	log.SetOutput(ow)
+	mw := io.MultiWriter(ow, os.Stderr)
+	log.SetOutput(mw)
 
 	glfw.WindowHint(glfw.ContextVersionMajor, 3)
 	glfw.WindowHint(glfw.ContextVersionMinor, 2)

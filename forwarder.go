@@ -24,12 +24,13 @@ func beginForwarderForm() {
 	imgui.InputText("Network Server", &config.Forwarder.Server)
 	imgui.InputText("UDP Port", &config.Forwarder.Port)
 
-	if imgui.Button("Connect") {
-		forwarderConnect()
-	}
-	if cNSClient.Connected {
-		if imgui.Button("Disconnect") {
-			forwarderDisconnect()
+	if mqttClient == nil || !mqttClient.IsConnected() {
+		if !cNSClient.IsConnected() {
+			if imgui.Button("Connect") {
+				forwarderConnect()
+			}
+		} else {
+			imgui.Text("UDP Listening")
 		}
 	}
 	//Add popus for file administration.
@@ -48,16 +49,8 @@ func forwarderConnect() error {
 
 	cNSClient.Server = config.Forwarder.Server
 	cNSClient.Port = port
-	cNSClient.Connected = true
+	cNSClient.Connect(config.GW.MAC, onIncomingDownlink)
 	log.Infoln("UDP Forwarder started (MQTT disabled)")
-	// TODO subscribe to downlinks
-
-	return nil
-}
-
-func forwarderDisconnect() error {
-	cNSClient.Connected = false
-	log.Infoln("UDP Forwarder stopped (MQTT back again)")
 
 	return nil
 }
