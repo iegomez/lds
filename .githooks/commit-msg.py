@@ -6,6 +6,6 @@ with open(sys.argv[1],mode='r') as file:
     if re.search(r'(fixes|closes|refs) #\d+', msg):
     	sys.exit(0)
     else:
-	print("Bad commit message {}".format(msg))
-	sys.exit(1)
+        print("Bad commit message {}".format(msg))
+        sys.exit(1)
 
