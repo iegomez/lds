@@ -3,10 +3,12 @@ package main
 import (
 	"strconv"
 
-	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/iegomez/lds/lds"
+
+    "gioui.org/layout"
+    "gioui.org/widget/material"
 )
 
 // cNSClient is a direct NetworkServer connection handle
@@ -17,8 +19,14 @@ type forwarder struct {
 	Port   string `toml:"nsport"`
 }
 
+func forwarderForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+	return layout.Rigid( func() {
+		th.Caption("forwarder").Layout(gtx)
+	})
+}
+
 func beginForwarderForm() {
-	imgui.Begin("Forwarder")
+/*! imgui.Begin("Forwarder")
 	imgui.Separator()
 	imgui.PushItemWidth(250.0)
 	imgui.InputText("Network Server", &config.Forwarder.Server)
@@ -36,7 +44,7 @@ func beginForwarderForm() {
 	//Add popus for file administration.
 	beginOpenFile()
 	beginSaveFile()
-	imgui.End()
+	imgui.End()*/
 }
 
 func forwarderConnect() error {

@@ -2,7 +2,9 @@ package main
 
 import (
 	"github.com/brocaar/lorawan"
-	"github.com/inkyblackness/imgui-go"
+
+    "gioui.org/layout"
+    "gioui.org/widget/material"
 )
 
 type macCommandItem struct {
@@ -110,8 +112,14 @@ var macCommands = []*macCommandItem{
 	},
 }
 
-func beginMACCommands() {
+func controlForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+	return layout.Rigid( func() {
+		th.Caption("control").Layout(gtx)
+	})
+}
 
+func beginMACCommands() {
+/*!
 	for i := 0; i < len(macCommands); i++ {
 		macCommand := macCommands[i]
 		imgui.PushItemWidth(200.0)
@@ -169,11 +177,11 @@ func beginMACCommands() {
 				//Nothing to do for nil payload commands.
 			}
 		}
-	}
+	}*/
 }
 
 func beginFCtrl() {
-	imgui.Checkbox("ACK##FCtrl-ACK", &fCtrl.ACK)
+/*!	imgui.Checkbox("ACK##FCtrl-ACK", &fCtrl.ACK)
 	imgui.SameLine()
 	imgui.Checkbox("ADR##FCtrl-ADR", &fCtrl.ADR)
 	imgui.SameLine()
@@ -181,11 +189,11 @@ func beginFCtrl() {
 	imgui.SameLine()
 	imgui.Checkbox("ClassB##FCtrl-ClassB", &fCtrl.ClassB)
 	imgui.SameLine()
-	imgui.Checkbox("FPending##FCtrl-FPending", &fCtrl.FPending)
+	imgui.Checkbox("FPending##FCtrl-FPending", &fCtrl.FPending)*/
 }
 
 func beginControl() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
+/*!	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 25})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 250})
 	imgui.Begin("Control")
 	imgui.Text("FCtrl")
@@ -194,5 +202,5 @@ func beginControl() {
 	imgui.Text("MAC Commands")
 	beginMACCommands()
 	imgui.Separator()
-	imgui.End()
+	imgui.End()*/
 }

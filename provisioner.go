@@ -2,8 +2,7 @@ package main
 
 import (
 	"github.com/iegomez/lsp"
-	"github.com/inkyblackness/imgui-go"
-	log "github.com/sirupsen/logrus"
+	//log "github.com/sirupsen/logrus"
 )
 
 type provisioner struct {
@@ -18,7 +17,7 @@ type provisioner struct {
 var openProvisioner bool
 
 func beginProvisioner() {
-	if openProvisioner {
+/*! if openProvisioner {
 		imgui.OpenPopup("Provisioner")
 		openProvisioner = false
 	}
@@ -62,5 +61,5 @@ func beginProvisioner() {
 		}
 
 		imgui.EndPopup()
-	}
+	}*/
 }

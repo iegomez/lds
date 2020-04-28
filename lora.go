@@ -1,10 +1,12 @@
 package main
 
 import (
-	"strconv"
+/*!	"strconv" */
 
 	lwband "github.com/brocaar/lorawan/band"
-	"github.com/inkyblackness/imgui-go"
+
+    "gioui.org/layout"
+    "gioui.org/widget/material"
 )
 
 // Bands and data rate options.
@@ -53,8 +55,14 @@ type rxInfo struct {
 	RssiS      string `toml:"-"`
 }
 
+func loRaForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+	return layout.Rigid( func() {
+		th.Caption("loRa").Layout(gtx)
+	})
+}
+
 func beginLoRaForm() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 650})
+/*!	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 650})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 265})
 	imgui.Begin("LoRa Configuration")
 	imgui.PushItemWidth(250.0)
@@ -99,5 +107,5 @@ func beginLoRaForm() {
 
 	imgui.InputTextV("Rssi", &config.RXInfo.RssiS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.RssiS, 10, &config.RXInfo.Rssi))
 
-	imgui.End()
+	imgui.End()*/
 }

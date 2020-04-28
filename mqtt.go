@@ -5,8 +5,10 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
-	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
+
+    "gioui.org/layout"
+    "gioui.org/widget/material"
 )
 
 var mqttClient paho.Client
@@ -24,8 +26,14 @@ type gateway struct {
 	BridgeVersion string `toml:"bridge_version"`
 }
 
+func mqttForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+	return layout.Rigid( func() {
+		th.Caption("mqtt").Layout(gtx)
+	})
+}
+
 func beginMQTTForm() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
+/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 170})
 	imgui.Begin("MQTT & Gateway")
 	imgui.Separator()
@@ -50,7 +58,7 @@ func beginMQTTForm() {
 	//Add popus for file administration.
 	beginOpenFile()
 	beginSaveFile()
-	imgui.End()
+	imgui.End()*/
 }
 
 func connectClient() error {

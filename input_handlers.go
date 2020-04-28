@@ -1,11 +1,10 @@
 package main
 
 import (
-	"strconv"
+/*!	"strconv"*/
 
-	"github.com/inkyblackness/imgui-go"
 )
-
+/*!
 func maxLength(input string, limit int) func(data imgui.InputTextCallbackData) int32 {
 	return func(data imgui.InputTextCallbackData) int32 {
 		if len(input) >= limit {
@@ -92,3 +91,4 @@ func handleFloat64(input string, uValue *float64) func(data imgui.InputTextCallb
 		return 0
 	}
 }
+*/

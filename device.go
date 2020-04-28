@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -10,10 +9,12 @@ import (
 	"github.com/brocaar/lorawan"
 	lwBand "github.com/brocaar/lorawan/band"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/iegomez/lds/lds"
+
+    "gioui.org/layout"
+    "gioui.org/widget/material"
 )
 
 // Marshalers, versions, and message types.
@@ -62,8 +63,14 @@ type device struct {
 	SkipFCntCheck bool               `toml:"skip_fcnt_check"`
 }
 
+func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+	return layout.Rigid( func() {
+		th.Caption("device").Layout(gtx)
+	})
+}
+
 func beginDeviceForm() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
+/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 435})
 	imgui.Begin("Device")
 	imgui.PushItemWidth(250.0)
@@ -140,7 +147,7 @@ func beginDeviceForm() {
 		imgui.Text(fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce))
 		imgui.Text(fmt.Sprintf("Joined: %t", cDevice.Joined))
 	}
-	imgui.End()
+	imgui.End()*/
 }
 
 func setDevice() {
@@ -252,7 +259,7 @@ func setDevice() {
 }
 
 func beginReset() {
-	if resetDevice {
+/*!	if resetDevice {
 		imgui.OpenPopup("Reset device")
 		resetDevice = false
 	}
@@ -281,11 +288,11 @@ func beginReset() {
 			//Close popup.
 		}
 		imgui.EndPopup()
-	}
+	}*/
 }
 
 func beginRedisValues() {
-	if setRedisValues {
+/*!	if setRedisValues {
 		imgui.OpenPopup("Set counters and nonces")
 		setRedisValues = false
 	}
@@ -315,7 +322,7 @@ func beginRedisValues() {
 			//Close popup.
 		}
 		imgui.EndPopup()
-	}
+	}*/
 }
 
 func join() {

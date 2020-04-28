@@ -6,10 +6,12 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/inkyblackness/imgui-go"
 	"github.com/pkg/errors"
 	"github.com/robertkrimen/otto"
 	log "github.com/sirupsen/logrus"
+
+    "gioui.org/layout"
+    "gioui.org/widget/material"
 )
 
 type encodedType struct {
@@ -48,9 +50,14 @@ function Encode(fPort, obj) {
 	return [];
 }
 `
+func dataForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+	return layout.Rigid( func() {
+		th.Caption("data").Layout(gtx)
+	})
+}
 
 func beginDataForm() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 285})
+/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 285})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 355})
 	imgui.Begin("Data")
 	imgui.Text("Raw data")
@@ -123,11 +130,11 @@ func beginDataForm() {
 	}
 	imgui.Separator()
 	beginScript()
-	imgui.End()
+	imgui.End()*/
 }
 
 func beginScript() {
-	if openScript {
+/*!	if openScript {
 		imgui.OpenPopup("JS encoder")
 		openScript = false
 	}
@@ -150,7 +157,7 @@ func beginScript() {
 			imgui.CloseCurrentPopup()
 		}
 		imgui.EndPopup()
-	}
+	}*/
 }
 
 // EncodeToBytes encodes the payload to a slice of bytes.
