@@ -170,20 +170,11 @@ func beginSaveFile() {
 }
 
 func resetGuiValues() {
+	mqttResetGuiValue()
 	forwarderResetGuiValues()
 }
 
 func mainWindow(gtx *layout.Context, th *material.Theme) {
-    /*
-        beginMQTTForm()
-        beginForwarderForm()
-        beginDeviceForm()
-        beginLoRaForm()
-        beginControl()
-        beginDataForm()
-        beginOutput()
-    */
-
     /*!
         beginMenu()
         beginProvisioner()
