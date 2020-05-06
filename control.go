@@ -122,7 +122,7 @@ var macCommands = []*macCommandItem{
 
 func controlForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	return layout.Rigid( func() {
-		th.Caption("control").Layout(gtx)
+		material.Caption(th, "control").Layout(gtx)
 	})
 }
 

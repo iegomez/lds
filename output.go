@@ -29,7 +29,7 @@ func setLevel(level log.Level) {
 
 func outputForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	return layout.Rigid( func() {
-		th.Caption("output").Layout(gtx)
+		material.Caption(th, "output").Layout(gtx)
 	})
 }
 

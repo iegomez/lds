@@ -10,7 +10,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/iegomez/lds/giox"
+	matx "github.com/scartill/giox/material"
 )
 
 var mqttClient paho.Client
@@ -66,22 +66,22 @@ func mqttForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	}
 
 	widgets := []layout.FlexChild{
-		giox.RigidSection(gtx, th, "MQTT & Gateway"),
-		giox.RigidEditor(gtx, th, "MQTT Server", "192.168.1.1", &mqttServerEdit),
-		giox.RigidEditor(gtx, th, "MQTT User", "", &mqttUserEdit),
-		giox.RigidEditor(gtx, th, "MQTT Password", "", &mqttPasswordEdit),
-		giox.RigidEditor(gtx, th, "Gateway MAC", "DEADBEEFDEADBEEF", &mqttMACEdit),
-		giox.RigidEditor(gtx, th, "Downlink Topic", "gateway/%s/command/down", &mqttDownlinkEdit),
-		giox.RigidEditor(gtx, th, "Uplink Topic", "gateway/%s/event/up", &mqttUplinkEdit)}
+		matx.RigidSection(gtx, th, "MQTT & Gateway"),
+		matx.RigidEditor(gtx, th, "MQTT Server", "192.168.1.1", &mqttServerEdit),
+		matx.RigidEditor(gtx, th, "MQTT User", "", &mqttUserEdit),
+		matx.RigidEditor(gtx, th, "MQTT Password", "", &mqttPasswordEdit),
+		matx.RigidEditor(gtx, th, "Gateway MAC", "DEADBEEFDEADBEEF", &mqttMACEdit),
+		matx.RigidEditor(gtx, th, "Downlink Topic", "gateway/%s/command/down", &mqttDownlinkEdit),
+		matx.RigidEditor(gtx, th, "Uplink Topic", "gateway/%s/event/up", &mqttUplinkEdit)}
 
 	if !cNSClient.IsConnected() {
-		widgets = append(widgets, giox.RigidButton(gtx, th, "Connect", &mqttConnectButton))
+		widgets = append(widgets, matx.RigidButton(gtx, th, "Connect", &mqttConnectButton))
 	} else {
-		widgets = append(widgets, giox.RigidLabel(gtx, th, "MQTT Connected"))
+		widgets = append(widgets, matx.RigidLabel(gtx, th, "MQTT Connected"))
 	}
 
 	if mqttClient != nil && mqttClient.IsConnected() {
-		widgets = append(widgets, giox.RigidButton(gtx, th, "Disconnect", &mqttDisconnectButton))
+		widgets = append(widgets, matx.RigidButton(gtx, th, "Disconnect", &mqttDisconnectButton))
 	}
 
 	return layout.Rigid(func() {

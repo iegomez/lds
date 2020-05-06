@@ -65,7 +65,7 @@ type device struct {
 
 func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	return layout.Rigid( func() {
-		th.Caption("device").Layout(gtx)
+		material.Caption(th, "device").Layout(gtx)
 	})
 }
 

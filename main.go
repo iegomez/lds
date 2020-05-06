@@ -204,19 +204,19 @@ func mainWindow(gtx *layout.Context, th *material.Theme) {
 }
 
 func loop(w *app.Window) error {
-    gofont.Register()
-    th := material.NewTheme()
-    gtx := layout.NewContext(w.Queue())
+	gofont.Register()
+	th := material.NewTheme()
+	gtx := new(layout.Context)
 
-    for e := range w.Events() {
-        if e, ok := e.(system.FrameEvent); ok {
-            gtx.Reset(e.Config, e.Size)
-            mainWindow(gtx, th)
-            e.Frame(gtx.Ops)
-        }
-    }
-    
-    return nil
+	for e := range w.Events() {
+		if e, ok := e.(system.FrameEvent); ok {
+			gtx.Reset(e.Queue, e.Config, e.Size)
+			mainWindow(gtx, th)
+			e.Frame(gtx.Ops)
+		}
+	}
+	
+	return nil
 }
 
 func main() {

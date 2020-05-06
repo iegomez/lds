@@ -10,7 +10,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/iegomez/lds/giox"
+	matx "github.com/scartill/giox/material"
 )
 
 // cNSClient is a direct NetworkServer connection handle
@@ -41,16 +41,16 @@ func forwarderForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 		forwarderConnect()
 	}
 
-	wLabel := giox.RigidSection(gtx, th, "Forwarder")
-	wNS := giox.RigidEditor(gtx, th, "Network Server", "192.168.1.1", &nserverEdit)
-	wNP := giox.RigidEditor(gtx, th, "UDP Port", "1680", &nportEdit)
+	wLabel := matx.RigidSection(gtx, th, "Forwarder")
+	wNS := matx.RigidEditor(gtx, th, "Network Server", "192.168.1.1", &nserverEdit)
+	wNP := matx.RigidEditor(gtx, th, "UDP Port", "1680", &nportEdit)
 
 	var wConnect layout.FlexChild
 	if mqttClient == nil || !mqttClient.IsConnected() {
 		if !cNSClient.IsConnected() {
-			wConnect = giox.RigidButton(gtx, th, "Connect", &nsConnectButton)
+			wConnect = matx.RigidButton(gtx, th, "Connect", &nsConnectButton)
 		} else {
-			wConnect = giox.RigidLabel(gtx, th, "UDP Listening")
+			wConnect = matx.RigidLabel(gtx, th, "UDP Listening")
 		}
 	}
 

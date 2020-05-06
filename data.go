@@ -52,7 +52,7 @@ function Encode(fPort, obj) {
 `
 func dataForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	return layout.Rigid( func() {
-		th.Caption("data").Layout(gtx)
+		material.Caption(th, "data").Layout(gtx)
 	})
 }
 
