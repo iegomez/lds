@@ -1,12 +1,14 @@
 package main
 
 import (
-/*!	"strconv" */
+	/*!	"strconv" */
 
 	lwband "github.com/brocaar/lorawan/band"
 
-    "gioui.org/layout"
-    "gioui.org/widget/material"
+	"gioui.org/layout"
+	"gioui.org/widget/material"
+	"github.com/iegomez/lds/giox"
+	xmat "github.com/iegomez/lds/giox/material"
 )
 
 // Bands and data rate options.
@@ -55,14 +57,25 @@ type rxInfo struct {
 	RssiS      string `toml:"-"`
 }
 
+var (
+	loraBandCombo = giox.MakeCombo([]string{"Test", "Foo"})
+)
+
 func loRaForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
-	return layout.Rigid( func() {
-		th.Caption("loRa").Layout(gtx)
+	widgets := []layout.FlexChild{
+		giox.RigidSection(gtx, th, "LoRa Configuration"),
+		layout.Rigid(func() {
+			xmat.Combo(th).Layout(gtx, &loraBandCombo)
+		}),
+	}
+
+	return layout.Rigid(func() {
+		layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
 	})
 }
 
 func beginLoRaForm() {
-/*!	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 650})
+	/*!	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 650})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 265})
 	imgui.Begin("LoRa Configuration")
 	imgui.PushItemWidth(250.0)
