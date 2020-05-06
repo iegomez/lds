@@ -391,8 +391,8 @@ github.com/rogpeppe/go-internal v1.0.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.1.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rubenv/sql-migrate v0.0.0-20181213081019-5a8808c14925/go.mod h1:WS0rl9eEliYI8DPnr3TOwz4439pay+qNgzJoVya/DmY=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
-github.com/scartill/giox v0.0.0-20200506134446-6c8f0d807b56 h1:m88KQR9JItmtX5JLzigpMyd8XeN91z0aCNSHWzs8Ejg=
-github.com/scartill/giox v0.0.0-20200506134446-6c8f0d807b56/go.mod h1:Zz/KNrBpeoRoCgJ1Ilxvt7VT5qTIqsiQhDZ0fvrm2gI=
+github.com/scartill/giox v1.0.1 h1:CPH/cXmZWbKd/iHAA7TBEJ6C3ojnek8QmafArV/e+/w=
+github.com/scartill/giox v1.0.1/go.mod h1:Zz/KNrBpeoRoCgJ1Ilxvt7VT5qTIqsiQhDZ0fvrm2gI=
 github.com/serenize/snaker v0.0.0-20171204205717-a683aaf2d516/go.mod h1:Yow6lPLSAXx2ifx470yD/nUe22Dv5vBvxK/UK9UUTVs=
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=
 github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24/go.mod h1:M+9NzErvs504Cn4c5DxATwIqPbtswREoFCre64PpcG4=

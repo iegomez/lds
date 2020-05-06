@@ -14,7 +14,7 @@ require (
 	github.com/iegomez/lsp v0.0.0-20190702162050-add458041bb0
 	github.com/pkg/errors v0.8.1
 	github.com/robertkrimen/otto v0.0.0-20180617131154-15f95af6e78d
-	github.com/scartill/giox v0.0.0-20200506134446-6c8f0d807b56
+	github.com/scartill/giox v1.0.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.3.1-0.20190311161405-34c6fa2dc709 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect

@@ -67,12 +67,12 @@ func mqttForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 
 	widgets := []layout.FlexChild{
 		matx.RigidSection(gtx, th, "MQTT & Gateway"),
-		matx.RigidEditor(gtx, th, "MQTT Server", "192.168.1.1", &mqttServerEdit),
-		matx.RigidEditor(gtx, th, "MQTT User", "", &mqttUserEdit),
-		matx.RigidEditor(gtx, th, "MQTT Password", "", &mqttPasswordEdit),
-		matx.RigidEditor(gtx, th, "Gateway MAC", "DEADBEEFDEADBEEF", &mqttMACEdit),
-		matx.RigidEditor(gtx, th, "Downlink Topic", "gateway/%s/command/down", &mqttDownlinkEdit),
-		matx.RigidEditor(gtx, th, "Uplink Topic", "gateway/%s/event/up", &mqttUplinkEdit)}
+		matx.RigidEditor(gtx, th, "MQTT Server:", "192.168.1.1", &mqttServerEdit),
+		matx.RigidEditor(gtx, th, "MQTT User:", "", &mqttUserEdit),
+		matx.RigidEditor(gtx, th, "MQTT Password:", "", &mqttPasswordEdit),
+		matx.RigidEditor(gtx, th, "Gateway MAC:", "DEADBEEFDEADBEEF", &mqttMACEdit),
+		matx.RigidEditor(gtx, th, "Downlink Topic:", "gateway/%s/command/down", &mqttDownlinkEdit),
+		matx.RigidEditor(gtx, th, "Uplink Topic:", "gateway/%s/event/up", &mqttUplinkEdit)}
 
 	if !cNSClient.IsConnected() {
 		widgets = append(widgets, matx.RigidButton(gtx, th, "Connect", &mqttConnectButton))

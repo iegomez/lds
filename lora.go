@@ -7,7 +7,8 @@ import (
 
     "gioui.org/layout"
     "gioui.org/widget/material"
-    matx "github.com/scartill/giox/material"
+    "github.com/scartill/giox"
+    xmat "github.com/scartill/giox/material"
 )
 
 // Bands and data rate options.
@@ -55,14 +56,31 @@ type rxInfo struct {
     RfChainS   string `toml:"-"`
     RssiS      string `toml:"-"`
 }
-/*
+
 var (
-    loraBandCombo = matx.MakeCombo([]string{"Test", "Foo"})
+    loraBandCombo = giox.MakeCombo(
+        []string {
+            string(lwband.AS_923),
+            string(lwband.AU_915_928),
+            string(lwband.CN_470_510),
+            string(lwband.CN_779_787),
+            string(lwband.EU_433),
+            string(lwband.EU_863_870),
+            string(lwband.IN_865_867),
+            string(lwband.KR_920_923),
+            string(lwband.US_902_928),
+            string(lwband.RU_864_870),
+        },
+        "Select a band",
+    )
 )
-*/
+
 func loRaForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
     widgets := []layout.FlexChild{
-        matx.RigidSection(gtx, th, "LoRa Configuration"),
+        xmat.RigidSection(gtx, th, "LoRa Configuration"),
+   		layout.Rigid(func() {
+			xmat.Combo(th).Layout(gtx, &loraBandCombo)
+		}),
     }
 
     return layout.Rigid(func() {

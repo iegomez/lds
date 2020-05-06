@@ -42,8 +42,8 @@ func forwarderForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	}
 
 	wLabel := matx.RigidSection(gtx, th, "Forwarder")
-	wNS := matx.RigidEditor(gtx, th, "Network Server", "192.168.1.1", &nserverEdit)
-	wNP := matx.RigidEditor(gtx, th, "UDP Port", "1680", &nportEdit)
+	wNS := matx.RigidEditor(gtx, th, "Network Server:", "192.168.1.1", &nserverEdit)
+	wNP := matx.RigidEditor(gtx, th, "UDP Port:", "1680", &nportEdit)
 
 	var wConnect layout.FlexChild
 	if mqttClient == nil || !mqttClient.IsConnected() {
