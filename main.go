@@ -11,6 +11,7 @@ import (
     "gioui.org/app"
     "gioui.org/io/system"
     "gioui.org/layout"
+    "gioui.org/unit"
     "gioui.org/widget/material"
     "gioui.org/font/gofont"
 )
@@ -171,7 +172,8 @@ func beginSaveFile() {
 
 func resetGuiValues() {
 	mqttResetGuiValue()
-	forwarderResetGuiValues()
+    forwarderResetGuiValues()
+    loraResetGuiValues()
 }
 
 func mainWindow(gtx *layout.Context, th *material.Theme) {
@@ -188,18 +190,25 @@ func mainWindow(gtx *layout.Context, th *material.Theme) {
     wDataForm := dataForm(gtx, th)
     wOutputForm := outputForm(gtx, th)
 
+    inset := layout.UniformInset(unit.Px(10))
     wLeft := func() {
-        layout.Flex{Axis: layout.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wDeviceForm, wLoraForm)
+        inset.Layout(gtx, func() {
+            layout.Flex{Axis: layout.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wDeviceForm, wLoraForm)
+        })
     }
 
     wRight := func() {
-        layout.Flex{Axis: layout.Vertical}.Layout(gtx, wControlForm, wDataForm, wOutputForm)
+        inset.Layout(gtx, func() {
+            layout.Flex{Axis: layout.Vertical}.Layout(gtx, wControlForm, wDataForm, wOutputForm)
+        })
     }
 
-    layout.W.Layout(gtx, func() {
-        layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-            layout.Rigid(wLeft),
-            layout.Rigid(wRight))
+    inset.Layout(gtx, func() {
+        layout.W.Layout(gtx, func() {
+            layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+                layout.Rigid(wLeft),
+                layout.Rigid(wRight))
+        })
     })
 }
 
@@ -228,12 +237,15 @@ func main() {
     confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
     flag.Parse()
 
+    createLoRaForm()
+
 	importConf()
 	resetGuiValues()
     setDevice()
         
     go func() {
-        w := app.NewWindow()
+        p1024 := unit.Px(1024)
+        w := app.NewWindow(app.Size(p1024, p1024))
         if err := loop(w); err != nil {
             log.Fatal(err)
         }

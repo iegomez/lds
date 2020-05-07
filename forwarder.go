@@ -9,6 +9,7 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/widget"
+    "gioui.org/unit"
 	"gioui.org/widget/material"
 	matx "github.com/scartill/giox/material"
 )
@@ -54,8 +55,11 @@ func forwarderForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 		}
 	}
 
+    inset := layout.Inset{ Top: unit.Px(20) }
 	return layout.Rigid(func() {
-		layout.Flex{Axis: layout.Vertical}.Layout(gtx, wLabel, wNS, wNP, wConnect)
+        inset.Layout(gtx, func() {
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx, wLabel, wNS, wNP, wConnect)
+        })
 	})
 }
 

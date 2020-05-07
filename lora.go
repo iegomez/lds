@@ -1,11 +1,13 @@
 package main
 
 import (
-    /*!	"strconv" */
+  	"strconv"
 
     lwband "github.com/brocaar/lorawan/band"
 
     "gioui.org/layout"
+    "gioui.org/unit"
+    "gioui.org/widget"
     "gioui.org/widget/material"
     "github.com/scartill/giox"
     xmat "github.com/scartill/giox/material"
@@ -58,81 +60,121 @@ type rxInfo struct {
 }
 
 var (
-    loraBandCombo = giox.MakeCombo(
-        []string {
-            string(lwband.AS_923),
-            string(lwband.AU_915_928),
-            string(lwband.CN_470_510),
-            string(lwband.CN_779_787),
-            string(lwband.EU_433),
-            string(lwband.EU_863_870),
-            string(lwband.IN_865_867),
-            string(lwband.KR_920_923),
-            string(lwband.US_902_928),
-            string(lwband.RU_864_870),
-        },
-        "Select a band",
-    )
+    loraBandCombo  giox.Combo
+    bandwidthCombo giox.Combo
+    spreadFactorCombo giox.Combo
+    bitrateEdit widget.Editor
+    channelEdit widget.Editor
+    crcEdit widget.Editor
+    frequencyEdit widget.Editor
+    snrEdit widget.Editor
+    rfChainEdit widget.Editor
+    rssiEdit widget.Editor
 )
 
-func loRaForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
-    widgets := []layout.FlexChild{
-        xmat.RigidSection(gtx, th, "LoRa Configuration"),
-   		layout.Rigid(func() {
-			xmat.Combo(th).Layout(gtx, &loraBandCombo)
-		}),
+func createLoRaForm() {
+    bandItems := make([]string, len(bands))
+    for i, v := range bands {
+        bandItems[i] = string(v)
     }
+    loraBandCombo = giox.MakeCombo(bandItems, "<select band>")
 
+    bandwidthItems :=make([]string, len(bandwidths))
+    for i, v := range bandwidths {
+        bandwidthItems[i] = strconv.Itoa(v)
+    }
+    bandwidthCombo = giox.MakeCombo(bandwidthItems, "<select bandwidth>")
+
+    spreadFactorItems := make([]string, len(spreadFactors))
+    for i, v := range spreadFactors {
+        spreadFactorItems[i] = strconv.Itoa(v)
+    }
+    spreadFactorCombo = giox.MakeCombo(spreadFactorItems, "<select SF>")
+}
+
+func loraResetGuiValues() {
+    loraBandCombo.SelectItem(string(config.Band.Name))
+    bandwidthCombo.SelectItem(strconv.Itoa(config.DR.Bandwidth))
+    spreadFactorCombo.SelectItem(strconv.Itoa(config.DR.SpreadFactor))
+    bitrateEdit.SetText(config.DR.BitRateS)
+    channelEdit.SetText(config.RXInfo.ChannelS)
+    crcEdit.SetText(config.RXInfo.CrcStatusS)
+    frequencyEdit.SetText(config.RXInfo.FrequencyS) 
+    snrEdit.SetText(config.RXInfo.LoRASNRS) 
+    rfChainEdit.SetText(config.RXInfo.RfChainS) 
+    rssiEdit.SetText(config.RXInfo.RssiS)
+}
+
+
+func labelCombo(gtx *layout.Context, th *material.Theme, label string, combo *giox.Combo) layout.FlexChild {
+    inset := layout.Inset{ Top: unit.Px(10), Right: unit.Px(10) }
     return layout.Rigid(func() {
-        layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+        layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+            layout.Rigid(func () {
+                inset.Layout(gtx, func() {
+                    material.Label(th, unit.Px(16), label).Layout(gtx)
+                })
+            }),
+            layout.Rigid(func () {
+                xmat.Combo(th).Layout(gtx, combo)
+            }))
     })
 }
 
-func beginLoRaForm() {
-    /*!	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 650})
-    //imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 265})
-    imgui.Begin("LoRa Configuration")
-    imgui.PushItemWidth(250.0)
-    if imgui.BeginCombo("Band", string(config.Band.Name)) {
-        for _, band := range bands {
-            if imgui.SelectableV(string(band), band == config.Band.Name, 0, imgui.Vec2{}) {
-                config.Band.Name = band
+func loRaForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+    config.Band.Name = bands[0]
+    if loraBandCombo.HasSelected() {
+        for _, v := range bands {
+            if loraBandCombo.SelectedText() == string(v) {
+                config.Band.Name = v
             }
         }
-        imgui.EndCombo()
     }
 
-    if imgui.BeginCombo("Bandwidth", strconv.Itoa(config.DR.Bandwidth)) {
-        for _, bandwidth := range bandwidths {
-            if imgui.SelectableV(strconv.Itoa(bandwidth), bandwidth == config.DR.Bandwidth, 0, imgui.Vec2{}) {
-                config.DR.Bandwidth = bandwidth
-            }
-        }
-        imgui.EndCombo()
+    extractIntCombo(&bandwidthCombo, &config.DR.Bandwidth, 125)
+    extractIntCombo(&spreadFactorCombo, &config.DR.SpreadFactor, 10)
+
+    extractInt(&bitrateEdit, &config.DR.BitRate, 0)
+    extractInt(&channelEdit, &config.RXInfo.Channel, 0)
+    extractInt(&crcEdit, &config.RXInfo.CrcStatus, 1)
+    extractInt(&frequencyEdit, &config.RXInfo.Frequency, 916800000)
+    extractFloat(&snrEdit, &config.RXInfo.LoRaSNR, 7.0)
+    extractInt(&rfChainEdit, &config.RXInfo.RfChain, 1) 
+    extractInt(&rssiEdit, &config.RXInfo.Rssi, -57)
+
+    widgets := []layout.FlexChild{
+        xmat.RigidSection(gtx, th, "LoRa Configuration"),
+    }
+    
+    comboOpen := loraBandCombo.IsExpanded() || bandwidthCombo.IsExpanded() || spreadFactorCombo.IsExpanded()
+    if !comboOpen || loraBandCombo.IsExpanded() {
+        widgets = append(widgets, labelCombo(gtx, th, "Band", &loraBandCombo))
     }
 
-    if imgui.BeginCombo("SpreadFactor", strconv.Itoa(config.DR.SpreadFactor)) {
-        for _, sf := range spreadFactors {
-            if imgui.SelectableV(strconv.Itoa(sf), sf == config.DR.SpreadFactor, 0, imgui.Vec2{}) {
-                config.DR.SpreadFactor = sf
-            }
-        }
-        imgui.EndCombo()
+    if !comboOpen || bandwidthCombo.IsExpanded() {
+        widgets = append(widgets, labelCombo(gtx, th, "Bandwidth", &bandwidthCombo))
     }
 
-    imgui.InputTextV("Bit rate", &config.DR.BitRateS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.DR.BitRateS, 6, &config.DR.BitRate))
+    if !comboOpen || spreadFactorCombo.IsExpanded() {
+        widgets = append(widgets, labelCombo(gtx, th, "SpreadFactor", &spreadFactorCombo))
+    }
 
-    imgui.InputTextV("Channel", &config.RXInfo.ChannelS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.ChannelS, 10, &config.RXInfo.Channel))
+    if !comboOpen {
+        widgets = append(widgets, []layout.FlexChild {
+            xmat.RigidEditor(gtx, th, "Bitrate", "<bitrate>", &bitrateEdit),
+            xmat.RigidEditor(gtx, th, "Channel", "<channel>", &channelEdit),
+            xmat.RigidEditor(gtx, th, "CRC", "<checksum>", &crcEdit),
+            xmat.RigidEditor(gtx, th, "Frequency", "<frequency>", &frequencyEdit),
+            xmat.RigidEditor(gtx, th, "Lora SNR", "<snr>", &snrEdit),
+            xmat.RigidEditor(gtx, th, "RF Chain", "<rfchain>", &rfChainEdit),
+            xmat.RigidEditor(gtx, th, "RSSI", "<RSSI>", &rssiEdit),
+        }...)
+    }
 
-    imgui.InputTextV("CrcStatus", &config.RXInfo.CrcStatusS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.CrcStatusS, 10, &config.RXInfo.CrcStatus))
-
-    imgui.InputTextV("Frequency", &config.RXInfo.FrequencyS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.FrequencyS, 14, &config.RXInfo.Frequency))
-
-    imgui.InputTextV("LoRaSNR", &config.RXInfo.LoRASNRS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.RXInfo.LoRASNRS, &config.RXInfo.LoRaSNR))
-
-    imgui.InputTextV("RfChain", &config.RXInfo.RfChainS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(config.RXInfo.RfChainS, 10, &config.RXInfo.RfChain))
-
-    imgui.InputTextV("Rssi", &config.RXInfo.RssiS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways|imgui.InputTextFlagsCallbackCharFilter, handleInt(config.RXInfo.RssiS, 10, &config.RXInfo.Rssi))
-
-    imgui.End()*/
+    inset := layout.Inset{ Top: unit.Px(20) }
+    return layout.Rigid(func() {
+        inset.Layout(gtx, func() {
+            layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+        })
+    })
 }

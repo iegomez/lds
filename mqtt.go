@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"gioui.org/layout"
+    "gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	matx "github.com/scartill/giox/material"
@@ -84,8 +85,11 @@ func mqttForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 		widgets = append(widgets, matx.RigidButton(gtx, th, "Disconnect", &mqttDisconnectButton))
 	}
 
+    inset := layout.Inset{ Top: unit.Px(5) }
 	return layout.Rigid(func() {
-		layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+        inset.Layout(gtx, func() {
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+        })
 	})
 }
 
