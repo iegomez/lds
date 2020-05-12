@@ -3,9 +3,28 @@ package main
 import (
   	"strconv"
 
+    "gioui.org/layout"
     "gioui.org/widget"
+    "gioui.org/unit"
+    "gioui.org/widget/material"
     "github.com/scartill/giox"
+    xmat "github.com/scartill/giox/material"
 )
+
+func labelCombo(gtx *layout.Context, th *material.Theme, label string, combo *giox.Combo) layout.FlexChild {
+    inset := layout.Inset{ Top: unit.Px(10), Right: unit.Px(10) }
+    return layout.Rigid(func() {
+        layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+            layout.Rigid(func () {
+                inset.Layout(gtx, func() {
+                    material.Label(th, unit.Px(16), label).Layout(gtx)
+                })
+            }),
+            layout.Rigid(func () {
+                xmat.Combo(th).Layout(gtx, combo)
+            }))
+    })
+}
 
 func extractInt(edit *widget.Editor, value *int, onError int) {
 	parsed, err := strconv.Atoi(edit.Text())

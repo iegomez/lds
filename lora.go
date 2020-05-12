@@ -105,22 +105,6 @@ func loraResetGuiValues() {
     rssiEdit.SetText(config.RXInfo.RssiS)
 }
 
-
-func labelCombo(gtx *layout.Context, th *material.Theme, label string, combo *giox.Combo) layout.FlexChild {
-    inset := layout.Inset{ Top: unit.Px(10), Right: unit.Px(10) }
-    return layout.Rigid(func() {
-        layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-            layout.Rigid(func () {
-                inset.Layout(gtx, func() {
-                    material.Label(th, unit.Px(16), label).Layout(gtx)
-                })
-            }),
-            layout.Rigid(func () {
-                xmat.Combo(th).Layout(gtx, combo)
-            }))
-    })
-}
-
 func loRaForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
     config.Band.Name = bands[0]
     if loraBandCombo.HasSelected() {

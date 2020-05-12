@@ -174,6 +174,7 @@ func resetGuiValues() {
 	mqttResetGuiValue()
     forwarderResetGuiValues()
     loraResetGuiValues()
+    deviceResetGuiValues()
 }
 
 func mainWindow(gtx *layout.Context, th *material.Theme) {
@@ -193,7 +194,13 @@ func mainWindow(gtx *layout.Context, th *material.Theme) {
     inset := layout.UniformInset(unit.Px(10))
     wLeft := func() {
         inset.Layout(gtx, func() {
-            layout.Flex{Axis: layout.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wDeviceForm, wLoraForm)
+            layout.Flex{Axis: layout.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wLoraForm)
+        })
+    }
+
+    wMid := func() {
+        inset.Layout(gtx, func() {
+            layout.Flex{Axis: layout.Vertical}.Layout(gtx, wDeviceForm)
         })
     }
 
@@ -207,7 +214,9 @@ func mainWindow(gtx *layout.Context, th *material.Theme) {
         layout.W.Layout(gtx, func() {
             layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
                 layout.Rigid(wLeft),
-                layout.Rigid(wRight))
+                layout.Rigid(wMid),
+                layout.Rigid(wRight),
+            )
         })
     })
 }
@@ -238,6 +247,7 @@ func main() {
     flag.Parse()
 
     createLoRaForm()
+    createDeviceForm()
 
 	importConf()
 	resetGuiValues()

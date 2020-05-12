@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -13,8 +14,12 @@ import (
 
 	"github.com/iegomez/lds/lds"
 
-    "gioui.org/layout"
-    "gioui.org/widget/material"
+	"gioui.org/layout"
+	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
+	"github.com/scartill/giox"
+	xmat "github.com/scartill/giox/material"
 )
 
 // Marshalers, versions, and message types.
@@ -27,21 +32,7 @@ var (
 
 // lds device related vars.
 var (
-	cDevice        *lds.Device
-	resetDevice    bool
-	setRedisValues bool
-)
-
-// Frame counters and nonces.
-var (
-	ulFcntEdit     int
-	dlFcntEdit     int
-	devNonceEdit   int
-	joinNonceEdit  int
-	ulFcntEditS    string
-	dlFcntEditS    string
-	devNonceEditS  string
-	joinNonceEditS string
+	cDevice *lds.Device
 )
 
 type device struct {
@@ -63,14 +54,221 @@ type device struct {
 	SkipFCntCheck bool               `toml:"skip_fcnt_check"`
 }
 
+// Widgets
+var (
+	deviceEUIEdit      widget.Editor
+	deviceAddressEdit  widget.Editor
+	nwkSEncKeyEdit     widget.Editor
+	sNwkSIntKeyEdit    widget.Editor
+	fNwkSIntKeyEdit    widget.Editor
+	appSKeyEdit        widget.Editor
+	nwkKeyEdit         widget.Editor
+	appKeyEdit         widget.Editor
+	joinEUIEdit        widget.Editor
+	marshalerCombo     giox.Combo
+	majorVersionCombo  giox.Combo
+	macVersionCombo    giox.Combo
+	mTypeCombo         giox.Combo
+	profileCombo       giox.Combo
+	disableFCWCheckbox widget.Bool
+	joinButton         widget.Button
+	resetButton        widget.Button
+	setValuesButton    widget.Button
+
+	ulFcntEdit    widget.Editor
+	dlFcntEdit    widget.Editor
+	devNonceEdit  widget.Editor
+	joinNonceEdit widget.Editor
+
+	setRedisValues   bool
+	resetDevice bool
+)
+
+func createDeviceForm() {
+	marshalerItems := make([]string, len(marshalers))
+	for i, v := range marshalers {
+		marshalerItems[i] = string(v)
+	}
+	marshalerCombo = giox.MakeCombo(marshalerItems, "<select marshaler>")
+
+	ki := 0
+	majorVersionItems := make([]string, len(majorVersions))
+	for _, v := range majorVersions {
+		majorVersionItems[ki] = string(v)
+		ki++
+	}
+	majorVersionCombo = giox.MakeCombo(majorVersionItems, "<select major version>")
+
+	ki = 0
+	macVersionItems := make([]string, len(macVersions))
+	for _, v := range macVersions {
+		macVersionItems[ki] = string(v)
+		ki++
+	}
+	macVersionCombo = giox.MakeCombo(macVersionItems, "<select MAC version>")
+
+	ki = 0
+	mTypeItems := make([]string, len(mTypes))
+	for _, v := range mTypes {
+		mTypeItems[ki] = string(v)
+		ki++
+	}
+	mTypeCombo = giox.MakeCombo(mTypeItems, "<select message type>")
+
+	profileCombo = giox.MakeCombo([]string{"OTAA", "ABP"}, "<select profile>")
+}
+
+func deviceResetGuiValues() {
+	deviceEUIEdit.SetText(config.Device.DevEUI)
+	deviceAddressEdit.SetText(config.Device.DevAddress)
+	nwkSEncKeyEdit.SetText(config.Device.NwkSEncKey)
+	sNwkSIntKeyEdit.SetText(config.Device.SNwkSIntKey)
+	fNwkSIntKeyEdit.SetText(config.Device.FNwkSIntKey)
+	appSKeyEdit.SetText(config.Device.AppSKey)
+	nwkKeyEdit.SetText(config.Device.NwkKey)
+	appKeyEdit.SetText(config.Device.AppKey)
+	joinEUIEdit.SetText(config.Device.JoinEUI)
+	marshalerCombo.SelectItem(string(config.Device.Marshaler))
+	majorVersionCombo.SelectItem(majorVersions[config.Device.Major])
+	macVersionCombo.SelectItem(macVersions[config.Device.MACVersion])
+	mTypeCombo.SelectItem(mTypes[config.Device.MType])
+	profileCombo.SelectItem(config.Device.Profile)
+	disableFCWCheckbox.Value = config.Device.SkipFCntCheck
+}
+
 func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
-	return layout.Rigid( func() {
-		material.Caption(th, "device").Layout(gtx)
+	config.Device.DevEUI = deviceEUIEdit.Text()
+	config.Device.DevAddress = deviceAddressEdit.Text()
+	config.Device.NwkSEncKey = nwkSEncKeyEdit.Text()
+	config.Device.SNwkSIntKey = sNwkSIntKeyEdit.Text()
+	config.Device.FNwkSIntKey = fNwkSIntKeyEdit.Text()
+	config.Device.AppSKey = appSKeyEdit.Text()
+	config.Device.NwkKey = nwkKeyEdit.Text()
+	config.Device.AppKey = appKeyEdit.Text()
+	config.Device.JoinEUI = joinEUIEdit.Text()
+
+	config.Device.Marshaler = marshalerCombo.SelectedText()
+
+	config.Device.Major = 0
+	if majorVersionCombo.HasSelected() {
+		for k, v := range majorVersions {
+			if majorVersionCombo.SelectedText() == string(v) {
+				config.Device.Major = k
+			}
+		}
+	}
+
+	config.Device.MACVersion = 0
+	if macVersionCombo.HasSelected() {
+		for k, v := range macVersions {
+			if macVersionCombo.SelectedText() == string(v) {
+				config.Device.MACVersion = k
+			}
+		}
+	}
+
+	config.Device.MType = lorawan.UnconfirmedDataUp
+	if mTypeCombo.HasSelected() {
+		for k, v := range mTypes {
+			if mTypeCombo.SelectedText() == string(v) {
+				config.Device.MType = k
+			}
+		}
+	}
+
+	config.Device.Profile = "OTAA"
+	if profileCombo.HasSelected() {
+		config.Device.Profile = profileCombo.SelectedText()
+	}
+
+	config.Device.SkipFCntCheck = disableFCWCheckbox.Value
+
+	for joinButton.Clicked(gtx) {
+		join()
+	}
+
+	for resetButton.Clicked(gtx) {
+		resetDevice = true
+	}
+
+	for setValuesButton.Clicked(gtx) {
+		setRedisValues = true
+	}
+
+	widgets := []layout.FlexChild{
+		xmat.RigidSection(gtx, th, "Device"),
+		xmat.RigidEditor(gtx, th, "DevEUI", "<device EUI>", &deviceEUIEdit),
+		xmat.RigidEditor(gtx, th, "DevAddress", "device address", &deviceAddressEdit),
+		xmat.RigidEditor(gtx, th, "NwkSEncKey", "network session key", &nwkSEncKeyEdit),
+		xmat.RigidEditor(gtx, th, "SNwkSIntKey", "network session key", &sNwkSIntKeyEdit),
+		xmat.RigidEditor(gtx, th, "FNwkSIntKey", "forward session key", &fNwkSIntKeyEdit),
+		xmat.RigidEditor(gtx, th, "AppSKey", "application session key", &appSKeyEdit),
+		xmat.RigidEditor(gtx, th, "NwkKey", "network key", &nwkKeyEdit),
+		xmat.RigidEditor(gtx, th, "AppKey", "application key", &appKeyEdit),
+		xmat.RigidEditor(gtx, th, "JoinEUI", "join EUI", &joinEUIEdit),
+	}
+
+	comboOpen := marshalerCombo.IsExpanded() ||
+		majorVersionCombo.IsExpanded() ||
+		macVersionCombo.IsExpanded() ||
+		mTypeCombo.IsExpanded() ||
+		profileCombo.IsExpanded()
+
+	if !comboOpen || marshalerCombo.IsExpanded() {
+		widgets = append(widgets, labelCombo(gtx, th, "Marshaler", &marshalerCombo))
+	}
+
+	if !comboOpen || majorVersionCombo.IsExpanded() {
+		widgets = append(widgets, labelCombo(gtx, th, "LoRaWAN Major", &majorVersionCombo))
+	}
+
+	if !comboOpen || macVersionCombo.IsExpanded() {
+		widgets = append(widgets, labelCombo(gtx, th, "MAC Version", &macVersionCombo))
+	}
+
+	if !comboOpen || mTypeCombo.IsExpanded() {
+		widgets = append(widgets, labelCombo(gtx, th, "MType", &mTypeCombo))
+	}
+
+	if !comboOpen || profileCombo.IsExpanded() {
+		widgets = append(widgets, labelCombo(gtx, th, "Profile", &profileCombo))
+	}
+
+	if !comboOpen {
+		widgets = append(widgets, []layout.FlexChild{
+			xmat.RigidCheckBox(gtx, th, "Disable frame counter validation", &disableFCWCheckbox),
+			xmat.RigidButton(gtx, th, "Join", &joinButton),
+		}...)
+
+		if cDevice != nil {
+			widgets = append(widgets, []layout.FlexChild{
+				xmat.RigidButton(gtx, th, "Reset device", &resetButton),
+				xmat.RigidButton(gtx, th, "Set values", &setValuesButton),
+			}...)
+		}
+
+		widgets = append(widgets, beginReset()...)
+		widgets = append(widgets, beginRedisValues()...)
+
+		if cDevice != nil {
+			widgets = append(widgets, []layout.FlexChild{
+				xmat.RigidLabel(gtx, th, fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce)),
+				xmat.RigidLabel(gtx, th, fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce)),
+				xmat.RigidLabel(gtx, th, fmt.Sprintf("Joined: %t", cDevice.Joined)),
+			}...)
+		}
+	}
+
+	inset := layout.Inset{Top: unit.Px(20)}
+	return layout.Rigid(func() {
+		inset.Layout(gtx, func() {
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+		})
 	})
 }
 
 func beginDeviceForm() {
-/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
+	/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 435})
 	imgui.Begin("Device")
 	imgui.PushItemWidth(250.0)
@@ -231,14 +429,14 @@ func setDevice() {
 			config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
 			config.Device.AppSKey = lds.KeyToHex(cDevice.AppSKey)
 			config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
-			ulFcntEdit = int(cDevice.UlFcnt)
-			ulFcntEditS = strconv.Itoa(ulFcntEdit)
-			dlFcntEdit = int(cDevice.DlFcnt)
-			dlFcntEditS = strconv.Itoa(dlFcntEdit)
-			devNonceEdit = int(cDevice.DevNonce)
-			devNonceEditS = strconv.Itoa(devNonceEdit)
-			joinNonceEdit = int(cDevice.JoinNonce)
-			joinNonceEditS = strconv.Itoa(joinNonceEdit)
+			ulFcnt := int(cDevice.UlFcnt)
+			dlFcnt := int(cDevice.DlFcnt)
+			devNonce := int(cDevice.DevNonce)
+			joinNonce := int(cDevice.JoinNonce)
+			ulFcntEdit.SetText(strconv.Itoa(ulFcnt))
+			dlFcntEdit.SetText(strconv.Itoa(dlFcnt))
+			devNonceEdit.SetText(strconv.Itoa(devNonce))
+			joinNonceEdit.SetText(strconv.Itoa(joinNonce))
 		}
 	} else {
 		cDevice.DevEUI = devEUI
@@ -258,8 +456,8 @@ func setDevice() {
 	cDevice.SetMarshaler(config.Device.Marshaler)
 }
 
-func beginReset() {
-/*!	if resetDevice {
+func beginReset() []layout.FlexChild {
+	/*!	if resetDevice {
 		imgui.OpenPopup("Reset device")
 		resetDevice = false
 	}
@@ -289,10 +487,12 @@ func beginReset() {
 		}
 		imgui.EndPopup()
 	}*/
+	return []layout.FlexChild{}
 }
 
-func beginRedisValues() {
-/*!	if setRedisValues {
+func beginRedisValues() []layout.FlexChild {
+	return []layout.FlexChild{}
+	/*!	if setRedisValues {
 		imgui.OpenPopup("Set counters and nonces")
 		setRedisValues = false
 	}
