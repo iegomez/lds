@@ -80,8 +80,13 @@ var (
 	devNonceEdit  widget.Editor
 	joinNonceEdit widget.Editor
 
-	setRedisValues   bool
-	resetDevice bool
+	resetDevice        bool
+	resetCancelButton  widget.Button
+	resetConfirmButton widget.Button
+
+	setRedisValues              bool
+	setRedisValuesCancelButton  widget.Button
+	setRedisValuesConfirmButton widget.Button
 )
 
 func createDeviceForm() {
@@ -195,6 +200,18 @@ func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 		setRedisValues = true
 	}
 
+	if resetDevice {
+		if ok, subform := resetDeviceSubform(gtx, th); ok {
+			return subform
+		}
+	}
+
+	if setRedisValues {
+		if ok, subform := setRedisValuesSubform(gtx, th); ok {
+			return subform
+		}
+	}
+
 	widgets := []layout.FlexChild{
 		xmat.RigidSection(gtx, th, "Device"),
 		xmat.RigidEditor(gtx, th, "DevEUI", "<device EUI>", &deviceEUIEdit),
@@ -246,9 +263,6 @@ func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 				xmat.RigidButton(gtx, th, "Set values", &setValuesButton),
 			}...)
 		}
-
-		widgets = append(widgets, beginReset()...)
-		widgets = append(widgets, beginRedisValues()...)
 
 		if cDevice != nil {
 			widgets = append(widgets, []layout.FlexChild{
@@ -456,73 +470,91 @@ func setDevice() {
 	cDevice.SetMarshaler(config.Device.Marshaler)
 }
 
-func beginReset() []layout.FlexChild {
-	/*!	if resetDevice {
-		imgui.OpenPopup("Reset device")
-		resetDevice = false
-	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
-	imgui.PushItemWidth(250.0)
-	if imgui.BeginPopupModal("Reset device") {
+func resetDeviceSubform(gtx *layout.Context, th *material.Theme) (bool, layout.FlexChild) {
 
-		imgui.PushTextWrapPos()
-		imgui.Text("This will delete saved devNonce, joinNonce, downlink and uplink frame counters, device address and device keys. Are you sure you want to proceed?")
-		imgui.Separator()
-		if imgui.Button("Cancel") {
-			imgui.CloseCurrentPopup()
+	for resetCancelButton.Clicked(gtx) {
+		resetDevice = false
+		return false, layout.FlexChild{}
+	}
+
+	for resetConfirmButton.Clicked(gtx) {
+		//Reset device.
+		err := cDevice.Reset()
+		if err != nil {
+			log.Errorln(err)
+		} else {
+			setDevice()
+			log.Warningln("Device was reset")
 		}
-		imgui.SameLine()
-		if imgui.Button("Confirm") {
-			//Reset device.
-			err := cDevice.Reset()
-			if err != nil {
-				log.Errorln(err)
-			} else {
-				setDevice()
-				log.Infoln("device was reset")
-			}
-			imgui.CloseCurrentPopup()
-			//Close popup.
-		}
-		imgui.EndPopup()
-	}*/
-	return []layout.FlexChild{}
+		resetDevice = false
+		return false, layout.FlexChild{}
+	}
+
+	widgets := []layout.FlexChild{
+		xmat.RigidSection(gtx, th, "This will delete saved devNonce, joinNonce, downlink and uplink frame counters, device address and device keys. Are you sure you want to proceed?"),
+		xmat.RigidButton(gtx, th, "Cancel", &resetCancelButton),
+		xmat.RigidButton(gtx, th, "Confirm", &resetConfirmButton),
+	}
+
+	inset := layout.Inset{Top: unit.Px(20)}
+	return true, layout.Rigid(func() {
+		inset.Layout(gtx, func() {
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+		})
+	})
 }
 
-func beginRedisValues() []layout.FlexChild {
-	return []layout.FlexChild{}
-	/*!	if setRedisValues {
-		imgui.OpenPopup("Set counters and nonces")
-		setRedisValues = false
-	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-170) / 2, Y: float32(config.Window.Height-70) / 2})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 420, Y: 220})
-	imgui.PushItemWidth(250.0)
-	if imgui.BeginPopupModal("Set counters and nonces") {
+func setRedisValuesSubform(gtx *layout.Context, th *material.Theme) (bool, layout.FlexChild) {
+	ulFcntEdit.SetText(strconv.FormatUint(uint64(cDevice.UlFcnt), 10))
+	dlFcntEdit.SetText(strconv.FormatUint(uint64(cDevice.DlFcnt), 10))
+	devNonceEdit.SetText(strconv.FormatUint(uint64(cDevice.DevNonce), 10))
+	joinNonceEdit.SetText(strconv.FormatUint(uint64(cDevice.JoinNonce), 10))
 
-		imgui.PushTextWrapPos()
-		imgui.Text("Warning: this will only work when device is activated; when not, values will be reset on program start. Modifying these values may result in failure of communication.")
-		imgui.InputTextV(fmt.Sprintf("DlFcnt    ##dlFcntEdit"), &dlFcntEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(dlFcntEditS, 10, &dlFcntEdit))
-		imgui.InputTextV(fmt.Sprintf("UlFcnt    ##ulFcntEdit"), &ulFcntEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(ulFcntEditS, 10, &ulFcntEdit))
-		imgui.InputTextV(fmt.Sprintf("DevNonce    ##devNonceEdit"), &devNonceEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(devNonceEditS, 10, &devNonceEdit))
-		imgui.InputTextV(fmt.Sprintf("JoinNonce    ##joinNonceEdit"), &joinNonceEditS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(joinNonceEditS, 10, &joinNonceEdit))
-		imgui.Separator()
-		if imgui.Button("Cancel") {
-			imgui.CloseCurrentPopup()
+	for setRedisValuesCancelButton.Clicked(gtx) {
+		//Close popup.
+		setRedisValues = false
+		return false, layout.FlexChild{}
+	}
+
+	for setRedisValuesConfirmButton.Clicked(gtx) {
+		//Set values.
+		var (
+			ulFcnt    int
+			dlFcnt    int
+			devNonce  int
+			joinNonce int
+		)
+		extractInt(&ulFcntEdit, &ulFcnt, 0)
+		extractInt(&dlFcntEdit, &dlFcnt, 0)
+		extractInt(&devNonceEdit, &devNonce, 0)
+		extractInt(&joinNonceEdit, &joinNonce, 0)
+		log.Warningln("Setting Redis values")
+		err := cDevice.SetValues(ulFcnt, dlFcnt, devNonce, joinNonce)
+		if err != nil {
+			log.Errorln(err)
 		}
-		imgui.SameLine()
-		if imgui.Button("Save") {
-			//Set values.
-			err := cDevice.SetValues(ulFcntEdit, dlFcntEdit, devNonceEdit, joinNonceEdit)
-			if err != nil {
-				log.Errorln(err)
-			}
-			imgui.CloseCurrentPopup()
-			//Close popup.
-		}
-		imgui.EndPopup()
-	}*/
+		//Close popup.
+		setRedisValues = false
+		return false, layout.FlexChild{}
+	}
+
+	widgets := []layout.FlexChild{
+		xmat.RigidSection(gtx, th, "Set counters and nonces"),
+		xmat.RigidLabel(gtx, th, "Warning: this will only work when device is activated; when not, values will be reset on program start. Modifying these values may result in failure of communication."),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("DlFcnt    ##dlFcntEdit"), "<downlink>", &dlFcntEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("UlFcnt    ##ulFcntEdit"), "<uplink>", &ulFcntEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("DevNonce    ##devNonceEdit"), "<dev nonce>", &devNonceEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("JoinNonce    ##joinNonceEdit"), "<join nonce>", &joinNonceEdit),
+		xmat.RigidButton(gtx, th, "Cancel", &setRedisValuesCancelButton),
+		xmat.RigidButton(gtx, th, "Confirm", &setRedisValuesConfirmButton),
+	}
+
+	inset := layout.Inset{Top: unit.Px(20)}
+	return true, layout.Rigid(func() {
+		inset.Layout(gtx, func() {
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+		})
+	})
 }
 
 func join() {
