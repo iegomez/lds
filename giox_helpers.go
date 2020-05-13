@@ -1,29 +1,29 @@
 package main
 
 import (
-  	"strconv"
+	"strconv"
 
-    "gioui.org/layout"
-    "gioui.org/widget"
-    "gioui.org/unit"
-    "gioui.org/widget/material"
-    "github.com/scartill/giox"
-    xmat "github.com/scartill/giox/material"
+	"gioui.org/layout"
+	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
+	"github.com/scartill/giox"
+	xmat "github.com/scartill/giox/material"
 )
 
 func labelCombo(gtx *layout.Context, th *material.Theme, label string, combo *giox.Combo) layout.FlexChild {
-    inset := layout.Inset{ Top: unit.Px(10), Right: unit.Px(10) }
-    return layout.Rigid(func() {
-        layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-            layout.Rigid(func () {
-                inset.Layout(gtx, func() {
-                    material.Label(th, unit.Px(16), label).Layout(gtx)
-                })
-            }),
-            layout.Rigid(func () {
-                xmat.Combo(th).Layout(gtx, combo)
-            }))
-    })
+	inset := layout.Inset{Top: unit.Px(10), Right: unit.Px(10)}
+	return layout.Rigid(func() {
+		layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+			layout.Rigid(func() {
+				inset.Layout(gtx, func() {
+					material.Label(th, unit.Px(16), label).Layout(gtx)
+				})
+			}),
+			layout.Rigid(func() {
+				xmat.Combo(th).Layout(gtx, combo)
+			}))
+	})
 }
 
 func extractInt(edit *widget.Editor, value *int, onError int) {
@@ -31,6 +31,16 @@ func extractInt(edit *widget.Editor, value *int, onError int) {
 
 	if err == nil {
 		*value = parsed
+	} else {
+		*value = onError
+	}
+}
+
+func extractUInt8(edit *widget.Editor, value *uint8, onError uint8) {
+	parsed, err := strconv.ParseUint(edit.Text(), 10, 8)
+
+	if err == nil {
+		*value = uint8(parsed)
 	} else {
 		*value = onError
 	}

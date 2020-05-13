@@ -281,87 +281,6 @@ func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	})
 }
 
-func beginDeviceForm() {
-	/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 205})
-	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 435})
-	imgui.Begin("Device")
-	imgui.PushItemWidth(250.0)
-	imgui.InputTextV("Device EUI", &config.Device.DevEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevEUI, 16))
-	imgui.InputTextV("Device address", &config.Device.DevAddress, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.DevAddress, 8))
-	imgui.InputTextV("NwkSEncKey", &config.Device.NwkSEncKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkSEncKey, 32))
-	imgui.InputTextV("SNwkSIntkey", &config.Device.SNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.SNwkSIntKey, 32))
-	imgui.InputTextV("FNwkSIntKey", &config.Device.FNwkSIntKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.FNwkSIntKey, 32))
-	imgui.InputTextV("AppSKey", &config.Device.AppSKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppSKey, 32))
-	imgui.InputTextV("NwkKey", &config.Device.NwkKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.NwkKey, 32))
-	imgui.InputTextV("AppKey", &config.Device.AppKey, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.AppKey, 32))
-	imgui.InputTextV("Join EUI", &config.Device.JoinEUI, imgui.InputTextFlagsCharsHexadecimal|imgui.InputTextFlagsCallbackCharFilter, maxLength(config.Device.JoinEUI, 16))
-	if imgui.BeginCombo("Marshaler", config.Device.Marshaler) {
-		for _, marshaler := range marshalers {
-			if imgui.SelectableV(marshaler, marshaler == config.Device.Marshaler, 0, imgui.Vec2{}) {
-				config.Device.Marshaler = marshaler
-			}
-		}
-		imgui.EndCombo()
-	}
-	if imgui.BeginCombo("LoRaWAN major", majorVersions[config.Device.Major]) {
-		if imgui.SelectableV("LoRaWANRev1", config.Device.Major == 0, 0, imgui.Vec2{}) {
-			config.Device.MACVersion = 0
-		}
-		imgui.EndCombo()
-	}
-	if imgui.BeginCombo("MAC Version", macVersions[config.Device.MACVersion]) {
-
-		if imgui.SelectableV("LoRaWAN 1.0", config.Device.MACVersion == 0, 0, imgui.Vec2{}) {
-			config.Device.MACVersion = 0
-		}
-		if imgui.SelectableV("LoRaWAN 1.1", config.Device.MACVersion == 1, 0, imgui.Vec2{}) {
-			config.Device.MACVersion = 1
-		}
-		imgui.EndCombo()
-	}
-	if imgui.BeginCombo("MType", mTypes[config.Device.MType]) {
-		if imgui.SelectableV("UnconfirmedDataUp", config.Device.MType == lorawan.UnconfirmedDataUp || config.Device.MType == 0, 0, imgui.Vec2{}) {
-			config.Device.MType = lorawan.UnconfirmedDataUp
-		}
-		if imgui.SelectableV("ConfirmedDataUp", config.Device.MType == lorawan.ConfirmedDataUp, 0, imgui.Vec2{}) {
-			config.Device.MType = lorawan.ConfirmedDataUp
-		}
-		imgui.EndCombo()
-	}
-	if imgui.BeginCombo("Profile", config.Device.Profile) {
-		if imgui.SelectableV("OTAA", config.Device.Profile == "OTAA", 0, imgui.Vec2{}) {
-			config.Device.Profile = "OTAA"
-		}
-		if imgui.SelectableV("ABP", config.Device.Profile == "ABP", 0, imgui.Vec2{}) {
-			config.Device.Profile = "ABP"
-		}
-		imgui.EndCombo()
-	}
-	imgui.Checkbox("Disable frame counter validation", &config.Device.SkipFCntCheck)
-	if imgui.Button("Join") {
-		join()
-	}
-	imgui.SameLine()
-	if cDevice != nil {
-		if imgui.Button("Reset device") {
-			resetDevice = true
-		}
-		imgui.SameLine()
-		if imgui.Button("Set values") {
-			setRedisValues = true
-		}
-	}
-	beginReset()
-	beginRedisValues()
-	imgui.Separator()
-	if cDevice != nil {
-		imgui.Text(fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce))
-		imgui.Text(fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce))
-		imgui.Text(fmt.Sprintf("Joined: %t", cDevice.Joined))
-	}
-	imgui.End()*/
-}
-
 func setDevice() {
 	//Build your node with known keys (ABP).
 	nwkSEncHexKey := config.Device.NwkSEncKey
@@ -491,7 +410,7 @@ func resetDeviceSubform(gtx *layout.Context, th *material.Theme) (bool, layout.F
 	}
 
 	widgets := []layout.FlexChild{
-		xmat.RigidSection(gtx, th, "This will delete saved devNonce, joinNonce, downlink and uplink frame counters, device address and device keys. Are you sure you want to proceed?"),
+		xmat.RigidSection(gtx, th, "This will delete saved devNonce, joinNonce, downlink and uplink frame counters,\ndevice address and device keys.\nAre you sure you want to proceed?"),
 		xmat.RigidButton(gtx, th, "Cancel", &resetCancelButton),
 		xmat.RigidButton(gtx, th, "Confirm", &resetConfirmButton),
 	}
@@ -541,10 +460,10 @@ func setRedisValuesSubform(gtx *layout.Context, th *material.Theme) (bool, layou
 	widgets := []layout.FlexChild{
 		xmat.RigidSection(gtx, th, "Set counters and nonces"),
 		xmat.RigidLabel(gtx, th, "Warning: this will only work when device is activated; when not, values will be reset on program start. Modifying these values may result in failure of communication."),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("DlFcnt    ##dlFcntEdit"), "<downlink>", &dlFcntEdit),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("UlFcnt    ##ulFcntEdit"), "<uplink>", &ulFcntEdit),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("DevNonce    ##devNonceEdit"), "<dev nonce>", &devNonceEdit),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("JoinNonce    ##joinNonceEdit"), "<join nonce>", &joinNonceEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("DlFcnt"), "<downlink>", &dlFcntEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("UlFcnt"), "<uplink>", &ulFcntEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("DevNonce"), "<dev nonce>", &devNonceEdit),
+		xmat.RigidEditor(gtx, th, fmt.Sprintf("JoinNonce"), "<join nonce>", &joinNonceEdit),
 		xmat.RigidButton(gtx, th, "Cancel", &setRedisValuesCancelButton),
 		xmat.RigidButton(gtx, th, "Confirm", &setRedisValuesConfirmButton),
 	}
@@ -729,7 +648,7 @@ func run() {
 
 		var fOpts []*lorawan.MACCommand
 		for i := 0; i < len(macCommands); i++ {
-			if macCommands[i].Use {
+			if macCommands[i].Use.Value {
 				fOpts = append(fOpts, &macCommands[i].MACCommand)
 			}
 		}
