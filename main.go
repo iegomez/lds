@@ -177,6 +177,7 @@ func resetGuiValues() {
 	loraResetGuiValues()
 	deviceResetGuiValues()
 	macResetGuiValues()
+	dataResetGuiValues()
 }
 
 func mainWindow(gtx l.Context, th *material.Theme) {

@@ -12,6 +12,7 @@ import (
 
 	"gioui.org/layout"
 	l "gioui.org/layout"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
 
@@ -51,6 +52,39 @@ function Encode(fPort, obj) {
 	return [];
 }
 `
+
+type encodedTypeWidgets struct {
+	Name         widget.Editor
+	Byte         widget.Editor
+	IsFloat      widget.Bool
+	DeleteButton widget.Clickable
+	Value        widget.Editor
+	MaxValue     widget.Editor
+	MinValue     widget.Editor
+}
+
+var (
+	rawBytesEditor     widget.Editor
+	sendRawCheckbox    widget.Bool
+	useEncoderCheckBox widget.Bool
+	openEncoderButton  widget.Clickable
+	fPortEditor        widget.Editor
+	intevalSlider      widget.Float
+	repeatCheckbox     widget.Bool
+	sendDataButton     widget.Clickable
+	stopDataButton     widget.Clickable
+	addEncodedType     widget.Clickable
+
+	encodedWidgets encodedTypeWidgets
+
+	scriptEditor      widget.Editor
+	clearScriptEditor widget.Clickable
+	closeScriptEditor widget.Clickable
+)
+
+func dataResetGuiValues() {
+
+}
 
 func dataForm(th *material.Theme) layout.FlexChild {
 	return layout.Rigid(func(gtx l.Context) l.Dimensions {
