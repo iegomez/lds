@@ -7,8 +7,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-    "gioui.org/layout"
-    "gioui.org/widget/material"
+	"gioui.org/layout"
+	l "gioui.org/layout"
+	"gioui.org/widget/material"
 )
 
 func writeHistory() {
@@ -27,14 +28,14 @@ func setLevel(level log.Level) {
 	log.SetLevel(level)
 }
 
-func outputForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
-	return layout.Rigid( func() {
-		material.Caption(th, "output").Layout(gtx)
+func outputForm(th *material.Theme) l.FlexChild {
+	return layout.Rigid(func(gtx l.Context) l.Dimensions {
+		return material.Caption(th, "output").Layout(gtx)
 	})
 }
 
 func beginOutput() {
-/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 650})
+	/*! //imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 650})
 	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 265})
 	imgui.Begin("Output")
 	imgui.PushTextWrapPos()

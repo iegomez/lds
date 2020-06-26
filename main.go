@@ -11,7 +11,8 @@ import (
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/io/system"
-	"gioui.org/layout"
+	l "gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
 )
@@ -178,64 +179,65 @@ func resetGuiValues() {
 	macResetGuiValues()
 }
 
-func mainWindow(gtx *layout.Context, th *material.Theme) {
+func mainWindow(gtx l.Context, th *material.Theme) {
 	/*!
 	  beginMenu()
 	  beginProvisioner()
 	*/
 
-	wMqttForm := mqttForm(gtx, th)
-	wForwarderForm := forwarderForm(gtx, th)
-	wDeviceForm := deviceForm(gtx, th)
-	wLoraForm := loRaForm(gtx, th)
-	wControlForm := controlForm(gtx, th)
-	wDataForm := dataForm(gtx, th)
-	wOutputForm := outputForm(gtx, th)
+	wMqttForm := mqttForm(th)
+	wForwarderForm := forwarderForm(th)
+	wDeviceForm := deviceForm(th)
+	wLoraForm := loRaForm(th)
+	wControlForm := controlForm(th)
+	wDataForm := dataForm(th)
+	wOutputForm := outputForm(th)
 
-	inset := layout.UniformInset(unit.Px(10))
-	wLeft := func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wLoraForm)
+	inset := l.UniformInset(unit.Px(10))
+	wLeft := func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wLoraForm)
 		})
 	}
 
-	wMid := func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, wDeviceForm)
+	wMid := func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, wDeviceForm)
 		})
 	}
 
-	wRight := func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, wControlForm, wDataForm, wOutputForm)
+	wRight := func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, wControlForm, wDataForm, wOutputForm)
 		})
 	}
 
-	inset.Layout(gtx, func() {
-		layout.W.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-				layout.Rigid(wLeft),
-				layout.Rigid(wMid),
-				layout.Rigid(wRight),
+	inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+		return l.W.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+				l.Rigid(wLeft),
+				l.Rigid(wMid),
+				l.Rigid(wRight),
 			)
 		})
 	})
 }
 
 func loop(w *app.Window) error {
-	gofont.Register()
-	th := material.NewTheme()
-	gtx := new(layout.Context)
+	th := material.NewTheme(gofont.Collection())
 
-	for e := range w.Events() {
-		if e, ok := e.(system.FrameEvent); ok {
-			gtx.Reset(e.Queue, e.Config, e.Size)
+	var ops op.Ops
+	for {
+		e := <-w.Events()
+		switch e := e.(type) {
+		case system.DestroyEvent:
+			return e.Err
+		case system.FrameEvent:
+			gtx := l.NewContext(&ops, e)
 			mainWindow(gtx, th)
 			e.Frame(gtx.Ops)
 		}
 	}
-
-	return nil
 }
 
 func main() {

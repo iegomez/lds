@@ -15,6 +15,7 @@ import (
 	"github.com/iegomez/lds/lds"
 
 	"gioui.org/layout"
+	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -71,9 +72,9 @@ var (
 	mTypeCombo         giox.Combo
 	profileCombo       giox.Combo
 	disableFCWCheckbox widget.Bool
-	joinButton         widget.Button
-	resetButton        widget.Button
-	setValuesButton    widget.Button
+	joinButton         widget.Clickable
+	resetButton        widget.Clickable
+	setValuesButton    widget.Clickable
 
 	ulFcntEdit    widget.Editor
 	dlFcntEdit    widget.Editor
@@ -81,12 +82,12 @@ var (
 	joinNonceEdit widget.Editor
 
 	resetDevice        bool
-	resetCancelButton  widget.Button
-	resetConfirmButton widget.Button
+	resetCancelButton  widget.Clickable
+	resetConfirmButton widget.Clickable
 
 	setRedisValues              bool
-	setRedisValuesCancelButton  widget.Button
-	setRedisValuesConfirmButton widget.Button
+	setRedisValuesCancelButton  widget.Clickable
+	setRedisValuesConfirmButton widget.Clickable
 )
 
 func createDeviceForm() {
@@ -141,7 +142,7 @@ func deviceResetGuiValues() {
 	disableFCWCheckbox.Value = config.Device.SkipFCntCheck
 }
 
-func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+func deviceForm(th *material.Theme) l.FlexChild {
 	config.Device.DevEUI = deviceEUIEdit.Text()
 	config.Device.DevAddress = deviceAddressEdit.Text()
 	config.Device.NwkSEncKey = nwkSEncKeyEdit.Text()
@@ -188,41 +189,41 @@ func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 
 	config.Device.SkipFCntCheck = disableFCWCheckbox.Value
 
-	for joinButton.Clicked(gtx) {
+	for joinButton.Clicked() {
 		join()
 	}
 
-	for resetButton.Clicked(gtx) {
+	for resetButton.Clicked() {
 		resetDevice = true
 	}
 
-	for setValuesButton.Clicked(gtx) {
+	for setValuesButton.Clicked() {
 		setRedisValues = true
 	}
 
 	if resetDevice {
-		if ok, subform := resetDeviceSubform(gtx, th); ok {
+		if ok, subform := resetDeviceSubform(th); ok {
 			return subform
 		}
 	}
 
 	if setRedisValues {
-		if ok, subform := setRedisValuesSubform(gtx, th); ok {
+		if ok, subform := setRedisValuesSubform(th); ok {
 			return subform
 		}
 	}
 
 	widgets := []layout.FlexChild{
-		xmat.RigidSection(gtx, th, "Device"),
-		xmat.RigidEditor(gtx, th, "DevEUI", "<device EUI>", &deviceEUIEdit),
-		xmat.RigidEditor(gtx, th, "DevAddress", "device address", &deviceAddressEdit),
-		xmat.RigidEditor(gtx, th, "NwkSEncKey", "network session key", &nwkSEncKeyEdit),
-		xmat.RigidEditor(gtx, th, "SNwkSIntKey", "network session key", &sNwkSIntKeyEdit),
-		xmat.RigidEditor(gtx, th, "FNwkSIntKey", "forward session key", &fNwkSIntKeyEdit),
-		xmat.RigidEditor(gtx, th, "AppSKey", "application session key", &appSKeyEdit),
-		xmat.RigidEditor(gtx, th, "NwkKey", "network key", &nwkKeyEdit),
-		xmat.RigidEditor(gtx, th, "AppKey", "application key", &appKeyEdit),
-		xmat.RigidEditor(gtx, th, "JoinEUI", "join EUI", &joinEUIEdit),
+		xmat.RigidSection(th, "Device"),
+		xmat.RigidEditor(th, "DevEUI", "<device EUI>", &deviceEUIEdit),
+		xmat.RigidEditor(th, "DevAddress", "device address", &deviceAddressEdit),
+		xmat.RigidEditor(th, "NwkSEncKey", "network session key", &nwkSEncKeyEdit),
+		xmat.RigidEditor(th, "SNwkSIntKey", "network session key", &sNwkSIntKeyEdit),
+		xmat.RigidEditor(th, "FNwkSIntKey", "forward session key", &fNwkSIntKeyEdit),
+		xmat.RigidEditor(th, "AppSKey", "application session key", &appSKeyEdit),
+		xmat.RigidEditor(th, "NwkKey", "network key", &nwkKeyEdit),
+		xmat.RigidEditor(th, "AppKey", "application key", &appKeyEdit),
+		xmat.RigidEditor(th, "JoinEUI", "join EUI", &joinEUIEdit),
 	}
 
 	comboOpen := marshalerCombo.IsExpanded() ||
@@ -232,51 +233,51 @@ func deviceForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 		profileCombo.IsExpanded()
 
 	if !comboOpen || marshalerCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(gtx, th, "Marshaler", &marshalerCombo))
+		widgets = append(widgets, labelCombo(th, "Marshaler", &marshalerCombo))
 	}
 
 	if !comboOpen || majorVersionCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(gtx, th, "LoRaWAN Major", &majorVersionCombo))
+		widgets = append(widgets, labelCombo(th, "LoRaWAN Major", &majorVersionCombo))
 	}
 
 	if !comboOpen || macVersionCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(gtx, th, "MAC Version", &macVersionCombo))
+		widgets = append(widgets, labelCombo(th, "MAC Version", &macVersionCombo))
 	}
 
 	if !comboOpen || mTypeCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(gtx, th, "MType", &mTypeCombo))
+		widgets = append(widgets, labelCombo(th, "MType", &mTypeCombo))
 	}
 
 	if !comboOpen || profileCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(gtx, th, "Profile", &profileCombo))
+		widgets = append(widgets, labelCombo(th, "Profile", &profileCombo))
 	}
 
 	if !comboOpen {
-		widgets = append(widgets, []layout.FlexChild{
-			xmat.RigidCheckBox(gtx, th, "Disable frame counter validation", &disableFCWCheckbox),
-			xmat.RigidButton(gtx, th, "Join", &joinButton),
+		widgets = append(widgets, []l.FlexChild{
+			xmat.RigidCheckBox(th, "Disable frame counter validation", &disableFCWCheckbox),
+			xmat.RigidButton(th, "Join", &joinButton),
 		}...)
 
 		if cDevice != nil {
-			widgets = append(widgets, []layout.FlexChild{
-				xmat.RigidButton(gtx, th, "Reset device", &resetButton),
-				xmat.RigidButton(gtx, th, "Set values", &setValuesButton),
+			widgets = append(widgets, []l.FlexChild{
+				xmat.RigidButton(th, "Reset device", &resetButton),
+				xmat.RigidButton(th, "Set values", &setValuesButton),
 			}...)
 		}
 
 		if cDevice != nil {
-			widgets = append(widgets, []layout.FlexChild{
-				xmat.RigidLabel(gtx, th, fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce)),
-				xmat.RigidLabel(gtx, th, fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce)),
-				xmat.RigidLabel(gtx, th, fmt.Sprintf("Joined: %t", cDevice.Joined)),
+			widgets = append(widgets, []l.FlexChild{
+				xmat.RigidLabel(th, fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce)),
+				xmat.RigidLabel(th, fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce)),
+				xmat.RigidLabel(th, fmt.Sprintf("Joined: %t", cDevice.Joined)),
 			}...)
 		}
 	}
 
-	inset := layout.Inset{Top: unit.Px(20)}
-	return layout.Rigid(func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+	inset := l.Inset{Top: unit.Px(20)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
 		})
 	})
 }
@@ -389,14 +390,14 @@ func setDevice() {
 	cDevice.SetMarshaler(config.Device.Marshaler)
 }
 
-func resetDeviceSubform(gtx *layout.Context, th *material.Theme) (bool, layout.FlexChild) {
+func resetDeviceSubform(th *material.Theme) (bool, l.FlexChild) {
 
-	for resetCancelButton.Clicked(gtx) {
+	for resetCancelButton.Clicked() {
 		resetDevice = false
-		return false, layout.FlexChild{}
+		return false, l.FlexChild{}
 	}
 
-	for resetConfirmButton.Clicked(gtx) {
+	for resetConfirmButton.Clicked() {
 		//Reset device.
 		err := cDevice.Reset()
 		if err != nil {
@@ -406,36 +407,36 @@ func resetDeviceSubform(gtx *layout.Context, th *material.Theme) (bool, layout.F
 			log.Warningln("Device was reset")
 		}
 		resetDevice = false
-		return false, layout.FlexChild{}
+		return false, l.FlexChild{}
 	}
 
-	widgets := []layout.FlexChild{
-		xmat.RigidSection(gtx, th, "This will delete saved devNonce, joinNonce, downlink and uplink frame counters,\ndevice address and device keys.\nAre you sure you want to proceed?"),
-		xmat.RigidButton(gtx, th, "Cancel", &resetCancelButton),
-		xmat.RigidButton(gtx, th, "Confirm", &resetConfirmButton),
+	widgets := []l.FlexChild{
+		xmat.RigidSection(th, "This will delete saved devNonce, joinNonce, downlink and uplink frame counters,\ndevice address and device keys.\nAre you sure you want to proceed?"),
+		xmat.RigidButton(th, "Cancel", &resetCancelButton),
+		xmat.RigidButton(th, "Confirm", &resetConfirmButton),
 	}
 
-	inset := layout.Inset{Top: unit.Px(20)}
-	return true, layout.Rigid(func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+	inset := l.Inset{Top: unit.Px(20)}
+	return true, l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
 		})
 	})
 }
 
-func setRedisValuesSubform(gtx *layout.Context, th *material.Theme) (bool, layout.FlexChild) {
+func setRedisValuesSubform(th *material.Theme) (bool, layout.FlexChild) {
 	ulFcntEdit.SetText(strconv.FormatUint(uint64(cDevice.UlFcnt), 10))
 	dlFcntEdit.SetText(strconv.FormatUint(uint64(cDevice.DlFcnt), 10))
 	devNonceEdit.SetText(strconv.FormatUint(uint64(cDevice.DevNonce), 10))
 	joinNonceEdit.SetText(strconv.FormatUint(uint64(cDevice.JoinNonce), 10))
 
-	for setRedisValuesCancelButton.Clicked(gtx) {
+	for setRedisValuesCancelButton.Clicked() {
 		//Close popup.
 		setRedisValues = false
 		return false, layout.FlexChild{}
 	}
 
-	for setRedisValuesConfirmButton.Clicked(gtx) {
+	for setRedisValuesConfirmButton.Clicked() {
 		//Set values.
 		var (
 			ulFcnt    int
@@ -458,20 +459,20 @@ func setRedisValuesSubform(gtx *layout.Context, th *material.Theme) (bool, layou
 	}
 
 	widgets := []layout.FlexChild{
-		xmat.RigidSection(gtx, th, "Set counters and nonces"),
-		xmat.RigidLabel(gtx, th, "Warning: this will only work when device is activated; when not, values will be reset on program start. Modifying these values may result in failure of communication."),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("DlFcnt"), "<downlink>", &dlFcntEdit),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("UlFcnt"), "<uplink>", &ulFcntEdit),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("DevNonce"), "<dev nonce>", &devNonceEdit),
-		xmat.RigidEditor(gtx, th, fmt.Sprintf("JoinNonce"), "<join nonce>", &joinNonceEdit),
-		xmat.RigidButton(gtx, th, "Cancel", &setRedisValuesCancelButton),
-		xmat.RigidButton(gtx, th, "Confirm", &setRedisValuesConfirmButton),
+		xmat.RigidSection(th, "Set counters and nonces"),
+		xmat.RigidLabel(th, "Warning: this will only work when device is activated; when not, values will be reset on program start. Modifying these values may result in failure of communication."),
+		xmat.RigidEditor(th, fmt.Sprintf("DlFcnt"), "<downlink>", &dlFcntEdit),
+		xmat.RigidEditor(th, fmt.Sprintf("UlFcnt"), "<uplink>", &ulFcntEdit),
+		xmat.RigidEditor(th, fmt.Sprintf("DevNonce"), "<dev nonce>", &devNonceEdit),
+		xmat.RigidEditor(th, fmt.Sprintf("JoinNonce"), "<join nonce>", &joinNonceEdit),
+		xmat.RigidButton(th, "Cancel", &setRedisValuesCancelButton),
+		xmat.RigidButton(th, "Confirm", &setRedisValuesConfirmButton),
 	}
 
 	inset := layout.Inset{Top: unit.Px(20)}
-	return true, layout.Rigid(func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+	return true, layout.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
 		})
 	})
 }

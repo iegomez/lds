@@ -3,7 +3,7 @@ package main
 import (
 	"strconv"
 
-	"gioui.org/layout"
+	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -11,17 +11,17 @@ import (
 	xmat "github.com/scartill/giox/material"
 )
 
-func labelCombo(gtx *layout.Context, th *material.Theme, label string, combo *giox.Combo) layout.FlexChild {
-	inset := layout.Inset{Top: unit.Px(10), Right: unit.Px(10)}
-	return layout.Rigid(func() {
-		layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-			layout.Rigid(func() {
-				inset.Layout(gtx, func() {
-					material.Label(th, unit.Px(16), label).Layout(gtx)
+func labelCombo(th *material.Theme, label string, combo *giox.Combo) l.FlexChild {
+	inset := l.Inset{Top: unit.Px(10), Right: unit.Px(10)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+					return material.Label(th, unit.Px(16), label).Layout(gtx)
 				})
 			}),
-			layout.Rigid(func() {
-				xmat.Combo(th).Layout(gtx, combo)
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return xmat.Combo(th, combo).Layout(gtx)
 			}))
 	})
 }

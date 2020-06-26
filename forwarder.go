@@ -7,9 +7,9 @@ import (
 
 	"github.com/iegomez/lds/lds"
 
-	"gioui.org/layout"
+	l "gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
-    "gioui.org/unit"
 	"gioui.org/widget/material"
 	matx "github.com/scartill/giox/material"
 )
@@ -25,7 +25,7 @@ type forwarder struct {
 var (
 	nserverEdit     widget.Editor
 	nportEdit       widget.Editor
-	nsConnectButton widget.Button
+	nsConnectButton widget.Clickable
 )
 
 func forwarderResetGuiValues() {
@@ -33,33 +33,33 @@ func forwarderResetGuiValues() {
 	nportEdit.SetText(config.Forwarder.Port)
 }
 
-func forwarderForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+func forwarderForm(th *material.Theme) l.FlexChild {
 
 	config.Forwarder.Server = nserverEdit.Text()
 	config.Forwarder.Port = nportEdit.Text()
 
-	for nsConnectButton.Clicked(gtx) {
+	for nsConnectButton.Clicked() {
 		forwarderConnect()
 	}
 
-	wLabel := matx.RigidSection(gtx, th, "Forwarder")
-	wNS := matx.RigidEditor(gtx, th, "Network Server:", "192.168.1.1", &nserverEdit)
-	wNP := matx.RigidEditor(gtx, th, "UDP Port:", "1680", &nportEdit)
+	wLabel := matx.RigidSection(th, "Forwarder")
+	wNS := matx.RigidEditor(th, "Network Server:", "192.168.1.1", &nserverEdit)
+	wNP := matx.RigidEditor(th, "UDP Port:", "1680", &nportEdit)
 
-	var wConnect layout.FlexChild
+	var wConnect l.FlexChild
 	if mqttClient == nil || !mqttClient.IsConnected() {
 		if !cNSClient.IsConnected() {
-			wConnect = matx.RigidButton(gtx, th, "Connect", &nsConnectButton)
+			wConnect = matx.RigidButton(th, "Connect", &nsConnectButton)
 		} else {
-			wConnect = matx.RigidLabel(gtx, th, "UDP Listening")
+			wConnect = matx.RigidLabel(th, "UDP Listening")
 		}
 	}
 
-    inset := layout.Inset{ Top: unit.Px(20) }
-	return layout.Rigid(func() {
-        inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, wLabel, wNS, wNP, wConnect)
-        })
+	inset := l.Inset{Top: unit.Px(20)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, wLabel, wNS, wNP, wConnect)
+		})
 	})
 }
 

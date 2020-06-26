@@ -7,8 +7,8 @@ import (
 	paho "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/sirupsen/logrus"
 
-	"gioui.org/layout"
-    "gioui.org/unit"
+	l "gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	matx "github.com/scartill/giox/material"
@@ -36,8 +36,8 @@ var (
 	mqttMACEdit          widget.Editor
 	mqttDownlinkEdit     widget.Editor
 	mqttUplinkEdit       widget.Editor
-	mqttConnectButton    widget.Button
-	mqttDisconnectButton widget.Button
+	mqttConnectButton    widget.Clickable
+	mqttDisconnectButton widget.Clickable
 )
 
 func mqttResetGuiValue() {
@@ -49,7 +49,7 @@ func mqttResetGuiValue() {
 	mqttUplinkEdit.SetText(config.MQTT.UplinkTopic)
 }
 
-func mqttForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+func mqttForm(th *material.Theme) l.FlexChild {
 
 	config.MQTT.Server = mqttServerEdit.Text()
 	config.MQTT.User = mqttUserEdit.Text()
@@ -58,38 +58,38 @@ func mqttForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 	config.MQTT.DownlinkTopic = mqttDownlinkEdit.Text()
 	config.MQTT.UplinkTopic = mqttUplinkEdit.Text()
 
-	for mqttConnectButton.Clicked(gtx) {
+	for mqttConnectButton.Clicked() {
 		connectClient()
 	}
 
-	for mqttDisconnectButton.Clicked(gtx) {
+	for mqttDisconnectButton.Clicked() {
 		mqttClient.Disconnect(200)
 	}
 
-	widgets := []layout.FlexChild{
-		matx.RigidSection(gtx, th, "MQTT & Gateway"),
-		matx.RigidEditor(gtx, th, "MQTT Server:", "192.168.1.1", &mqttServerEdit),
-		matx.RigidEditor(gtx, th, "MQTT User:", "", &mqttUserEdit),
-		matx.RigidEditor(gtx, th, "MQTT Password:", "", &mqttPasswordEdit),
-		matx.RigidEditor(gtx, th, "Gateway MAC:", "DEADBEEFDEADBEEF", &mqttMACEdit),
-		matx.RigidEditor(gtx, th, "Downlink Topic:", "gateway/%s/command/down", &mqttDownlinkEdit),
-		matx.RigidEditor(gtx, th, "Uplink Topic:", "gateway/%s/event/up", &mqttUplinkEdit)}
+	widgets := []l.FlexChild{
+		matx.RigidSection(th, "MQTT & Gateway"),
+		matx.RigidEditor(th, "MQTT Server:", "192.168.1.1", &mqttServerEdit),
+		matx.RigidEditor(th, "MQTT User:", "", &mqttUserEdit),
+		matx.RigidEditor(th, "MQTT Password:", "", &mqttPasswordEdit),
+		matx.RigidEditor(th, "Gateway MAC:", "DEADBEEFDEADBEEF", &mqttMACEdit),
+		matx.RigidEditor(th, "Downlink Topic:", "gateway/%s/command/down", &mqttDownlinkEdit),
+		matx.RigidEditor(th, "Uplink Topic:", "gateway/%s/event/up", &mqttUplinkEdit)}
 
 	if !cNSClient.IsConnected() {
-		widgets = append(widgets, matx.RigidButton(gtx, th, "Connect", &mqttConnectButton))
+		widgets = append(widgets, matx.RigidButton(th, "Connect", &mqttConnectButton))
 	} else {
-		widgets = append(widgets, matx.RigidLabel(gtx, th, "MQTT Connected"))
+		widgets = append(widgets, matx.RigidLabel(th, "MQTT Connected"))
 	}
 
 	if mqttClient != nil && mqttClient.IsConnected() {
-		widgets = append(widgets, matx.RigidButton(gtx, th, "Disconnect", &mqttDisconnectButton))
+		widgets = append(widgets, matx.RigidButton(th, "Disconnect", &mqttDisconnectButton))
 	}
 
-    inset := layout.Inset{ Top: unit.Px(5) }
-	return layout.Rigid(func() {
-        inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
-        })
+	inset := l.Inset{Top: unit.Px(5)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
+		})
 	})
 }
 

@@ -6,7 +6,7 @@ import (
 	"github.com/brocaar/lorawan"
 	xmat "github.com/scartill/giox/material"
 
-	"gioui.org/layout"
+	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -166,7 +166,7 @@ func macResetGuiValues() {
 	}
 }
 
-func controlForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
+func controlForm(th *material.Theme) l.FlexChild {
 	for _, command := range macCommands {
 		if command.MACCommand.Payload == nil {
 			continue
@@ -177,8 +177,8 @@ func controlForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 		}
 	}
 
-	widgets := []layout.FlexChild{
-		xmat.RigidSection(gtx, th, "Control"),
+	widgets := []l.FlexChild{
+		xmat.RigidSection(th, "Control"),
 	}
 
 	for c := 0; c < len(macCommands); c++ {
@@ -187,23 +187,23 @@ func controlForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 			continue
 		}
 
-		subwidgets := make([]layout.FlexChild, 0)
+		subwidgets := make([]l.FlexChild, 0)
 		for s := 0; s < len(command.Settings); s++ {
 			setting := &macCommands[c].Settings[s]
 
-			var widget layout.FlexChild
+			var widget l.FlexChild
 			if setting.IsBool {
-				widget = xmat.RigidCheckBox(gtx, th, setting.Label, &setting.Widget.CheckBox)
+				widget = xmat.RigidCheckBox(th, setting.Label, &setting.Widget.CheckBox)
 			} else {
-				widget = xmat.RigidEditor(gtx, th, setting.Label, setting.Hint, &setting.Widget.Editor)
+				widget = xmat.RigidEditor(th, setting.Label, setting.Hint, &setting.Widget.Editor)
 			}
 			subwidgets = append(subwidgets, widget)
 		}
 
-		subinset := layout.Inset{Left: unit.Px(20)}
-		settingsWidget := layout.Rigid(func() {
-			subinset.Layout(gtx, func() {
-				layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+		subinset := l.Inset{Left: unit.Px(20)}
+		settingsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return subinset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+				return l.Flex{Axis: l.Horizontal}.Layout(gtx,
 					subwidgets...,
 				)
 			})
@@ -211,19 +211,19 @@ func controlForm(gtx *layout.Context, th *material.Theme) layout.FlexChild {
 
 		label := command.MACCommand.CID.String()
 		checkbox := &command.Use
-		subsection := layout.Rigid(func() {
-			layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-				xmat.RigidCheckBox(gtx, th, label, checkbox),
+		subsection := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+				xmat.RigidCheckBox(th, label, checkbox),
 				settingsWidget,
 			)
 		})
 		widgets = append(widgets, subsection)
 	}
 
-	inset := layout.Inset{Top: unit.Px(20)}
-	return layout.Rigid(func() {
-		inset.Layout(gtx, func() {
-			layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
+	inset := l.Inset{Top: unit.Px(20)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
 		})
 	})
 }

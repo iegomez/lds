@@ -3,7 +3,7 @@ module github.com/iegomez/lds
 go 1.12
 
 require (
-	gioui.org v0.0.0-20200506064104-e97adeedd918
+	gioui.org v0.0.0-20200622185735-5bd0ecea5e43
 	github.com/BurntSushi/toml v0.3.1
 	github.com/brocaar/chirpstack-api/go v0.0.0-20191211112942-a2d1c6285030
 	github.com/brocaar/loraserver v0.0.0-20190429071653-f428e15194fb
@@ -14,7 +14,7 @@ require (
 	github.com/iegomez/lsp v0.0.0-20190702162050-add458041bb0
 	github.com/pkg/errors v0.8.1
 	github.com/robertkrimen/otto v0.0.0-20180617131154-15f95af6e78d
-	github.com/scartill/giox v1.1.0
+	github.com/scartill/giox v1.2.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.4.0 // indirect
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b // indirect
