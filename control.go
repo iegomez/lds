@@ -84,6 +84,30 @@ var macCommands = []*macCommandItem{
 					casted.ChannelMaskACK = widget.CheckBox.Value
 				},
 			},
+			{
+				Label:  "DateRateACK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.LinkADRAnsPayload)
+					widget.CheckBox.Value = casted.DataRateACK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.LinkADRAnsPayload)
+					casted.DataRateACK = widget.CheckBox.Value
+				},
+			},
+			{
+				Label:  "PowerACK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.LinkADRAnsPayload)
+					widget.CheckBox.Value = casted.PowerACK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.LinkADRAnsPayload)
+					casted.PowerACK = widget.CheckBox.Value
+				},
+			},
 		},
 	},
 	{
@@ -97,17 +121,107 @@ var macCommands = []*macCommandItem{
 			CID:     lorawan.RXParamSetupAns,
 			Payload: &lorawan.RXParamSetupAnsPayload{},
 		},
+		Settings: []commandSetting{
+			{
+				Label:  "ChannelACK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RXParamSetupAnsPayload)
+					widget.CheckBox.Value = casted.ChannelACK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RXParamSetupAnsPayload)
+					casted.ChannelACK = widget.CheckBox.Value
+				},
+			},
+			{
+				Label:  "RX2DateRateACK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RXParamSetupAnsPayload)
+					widget.CheckBox.Value = casted.RX2DataRateACK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RXParamSetupAnsPayload)
+					casted.RX2DataRateACK = widget.CheckBox.Value
+				},
+			},
+			{
+				Label:  "RX1DROffsetACK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RXParamSetupAnsPayload)
+					widget.CheckBox.Value = casted.RX1DROffsetACK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RXParamSetupAnsPayload)
+					casted.RX1DROffsetACK = widget.CheckBox.Value
+				},
+			},
+		},
 	},
 	{
 		MACCommand: lorawan.MACCommand{
 			CID:     lorawan.DevStatusAns,
 			Payload: &lorawan.DevStatusAnsPayload{},
 		},
+		Settings: []commandSetting{
+			{
+				Label: "Battery",
+				Hint:  "<battery>",
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DevStatusAnsPayload)
+					widget.Editor.SetText(strconv.Itoa(int(casted.Battery)))
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DevStatusAnsPayload)
+					extractUInt8(&widget.Editor, &casted.Battery, 0)
+				},
+			},
+			{
+				Label: "Margin",
+				Hint:  "<margin>",
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DevStatusAnsPayload)
+					widget.Editor.SetText(strconv.Itoa(int(casted.Margin)))
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DevStatusAnsPayload)
+					extractInt8(&widget.Editor, &casted.Margin, 0)
+				},
+			},
+		},
 	},
 	{
 		MACCommand: lorawan.MACCommand{
 			CID:     lorawan.NewChannelAns,
 			Payload: &lorawan.NewChannelAnsPayload{},
+		},
+		Settings: []commandSetting{
+			{
+				Label:  "ChannelFrequencyOK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.NewChannelAnsPayload)
+					widget.CheckBox.Value = casted.ChannelFrequencyOK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.NewChannelAnsPayload)
+					casted.ChannelFrequencyOK = widget.CheckBox.Value
+				},
+			},
+			{
+				Label:  "DataRateRangeOK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.NewChannelAnsPayload)
+					widget.CheckBox.Value = casted.DataRateRangeOK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.NewChannelAnsPayload)
+					casted.DataRateRangeOK = widget.CheckBox.Value
+				},
+			},
 		},
 	},
 	{
@@ -127,11 +241,51 @@ var macCommands = []*macCommandItem{
 			CID:     lorawan.DLChannelAns,
 			Payload: &lorawan.DLChannelAnsPayload{},
 		},
+		Settings: []commandSetting{
+			{
+				Label:  "ChannelFrequencyOK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DLChannelAnsPayload)
+					widget.CheckBox.Value = casted.ChannelFrequencyOK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DLChannelAnsPayload)
+					casted.ChannelFrequencyOK = widget.CheckBox.Value
+				},
+			},
+			{
+				Label:  "UplinkFrequencyExists",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DLChannelAnsPayload)
+					widget.CheckBox.Value = casted.UplinkFrequencyExists
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.DLChannelAnsPayload)
+					casted.UplinkFrequencyExists = widget.CheckBox.Value
+				},
+			},
+		},
 	},
 	{
 		MACCommand: lorawan.MACCommand{
 			CID:     lorawan.RekeyInd,
 			Payload: &lorawan.RekeyIndPayload{},
+		},
+		Settings: []commandSetting{
+			{
+				Label: "DevLoRaWANVersion",
+				Hint:  "<DevLoRaWANVersion>",
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RekeyIndPayload)
+					widget.Editor.SetText(strconv.Itoa(int(casted.DevLoRaWANVersion.Minor)))
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RekeyIndPayload)
+					extractUInt8(&widget.Editor, &casted.DevLoRaWANVersion.Minor, 0)
+				},
+			},
 		},
 	},
 	{
@@ -150,6 +304,20 @@ var macCommands = []*macCommandItem{
 		MACCommand: lorawan.MACCommand{
 			CID:     lorawan.RejoinParamSetupAns,
 			Payload: &lorawan.RejoinParamSetupAnsPayload{},
+		},
+		Settings: []commandSetting{
+			{
+				Label:  "TimeOK",
+				IsBool: true,
+				Setter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RejoinParamSetupAnsPayload)
+					widget.CheckBox.Value = casted.TimeOK
+				},
+				Getter: func(widget *settingWidget, payload lorawan.MACCommandPayload) {
+					casted := payload.(*lorawan.RejoinParamSetupAnsPayload)
+					casted.TimeOK = widget.CheckBox.Value
+				},
+			},
 		},
 	},
 }
