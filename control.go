@@ -333,6 +333,11 @@ var macCommands = []*macCommandItem{
 }
 
 func macResetGuiValues() {
+	fCtrlWidgets.ACK.Value = fCtrl.ACK
+	fCtrlWidgets.ADR.Value = fCtrl.ADR
+	fCtrlWidgets.ClassB.Value = fCtrl.ClassB
+	fCtrlWidgets.fPending.Value = fCtrl.FPending
+
 	for _, command := range macCommands {
 		if command.MACCommand.Payload == nil {
 			continue
