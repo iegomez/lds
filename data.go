@@ -4,16 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	c "strconv"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/robertkrimen/otto"
 	log "github.com/sirupsen/logrus"
 
-	"gioui.org/layout"
 	l "gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	xmat "github.com/scartill/giox/material"
 )
 
 type encodedType struct {
@@ -23,11 +25,6 @@ type encodedType struct {
 	MinValue float64 `toml:"min_value"`
 	IsFloat  bool    `toml:"is_float"`
 	NumBytes int     `toml:"num_bytes"`
-	//String representations.
-	ValueS    string `toml:"-"`
-	MinValueS string `toml:"-"`
-	MaxValueS string `toml:"-"`
-	NumBytesS string `toml:"-"`
 }
 
 //rawPayload holds optional raw bytes payload (hex encoded).
@@ -39,7 +36,6 @@ type rawPayload struct {
 	MaxExecTime int    `toml:"max_exec_time"`
 	Obj         string `toml:"js_object"`
 	FPort       int    `toml:"fport"`
-	FPortS      string `toml:"-"`
 }
 
 var openScript bool
@@ -55,7 +51,7 @@ function Encode(fPort, obj) {
 
 type encodedTypeWidgets struct {
 	Name         widget.Editor
-	Byte         widget.Editor
+	NumBytes     widget.Editor
 	IsFloat      widget.Bool
 	DeleteButton widget.Clickable
 	Value        widget.Editor
@@ -63,32 +59,82 @@ type encodedTypeWidgets struct {
 	MinValue     widget.Editor
 }
 
+// MaxEncodedTypes defines max number of simulated data types to send
+const MaxEncodedTypes = 10
+
 var (
 	rawBytesEditor     widget.Editor
 	sendRawCheckbox    widget.Bool
 	useEncoderCheckBox widget.Bool
 	openEncoderButton  widget.Clickable
 	fPortEditor        widget.Editor
-	intevalSlider      widget.Float
+	intervalEditor     widget.Editor
 	repeatCheckbox     widget.Bool
 	sendDataButton     widget.Clickable
 	stopDataButton     widget.Clickable
 	addEncodedType     widget.Clickable
 
-	encodedWidgets encodedTypeWidgets
+	encodedWidgets []encodedTypeWidgets
 
-	scriptEditor      widget.Editor
-	clearScriptEditor widget.Clickable
+	scriptOpened      bool
+	funcEditor        widget.Editor
+	objEditor         widget.Editor
 	closeScriptEditor widget.Clickable
 )
 
-func dataResetGuiValues() {
-
+func createDataForm() {
+	encodedWidgets = make([]encodedTypeWidgets, MaxEncodedTypes)
+	scriptOpened = false
 }
 
-func dataForm(th *material.Theme) layout.FlexChild {
-	return layout.Rigid(func(gtx l.Context) l.Dimensions {
-		return material.Caption(th, "data").Layout(gtx)
+func dataResetGuiValues() {
+	rawBytesEditor.SetText(config.RawPayload.Payload)
+	sendRawCheckbox.Value = config.RawPayload.UseRaw
+	useEncoderCheckBox.Value = config.RawPayload.UseEncoder
+	fPortEditor.SetText(c.Itoa(config.RawPayload.FPort))
+	intervalEditor.SetText(fmt.Sprintf("%d", interval))
+	repeatCheckbox.Value = repeat
+
+	for i := 0; i < len(config.EncodedType); i++ {
+		encodedWidgets[i].Name.SetText(config.EncodedType[i].Name)
+		encodedWidgets[i].NumBytes.SetText(c.Itoa(config.EncodedType[i].NumBytes))
+		encodedWidgets[i].IsFloat.Value = config.EncodedType[i].IsFloat
+		encodedWidgets[i].MaxValue.SetText(
+			fmt.Sprintf("%f", config.EncodedType[i].MaxValue))
+		encodedWidgets[i].MinValue.SetText(
+			fmt.Sprintf("%f", config.EncodedType[i].MinValue))
+
+	}
+
+	funcEditor.SetText(config.RawPayload.Script)
+	objEditor.SetText(config.RawPayload.Obj)
+}
+
+func dataForm(th *material.Theme) l.FlexChild {
+	/*! read params here */
+	widgets := make([]l.FlexChild, 0)
+	if !scriptOpened {
+		widgets = append(widgets,
+			xmat.RigidLabel(th, "Raw Data"),
+			xmat.RigidEditor(th, "Raw bytes in hex", "DEADBEEF", &rawBytesEditor),
+			xmat.RigidCheckBox(th, "Send raw", &sendRawCheckbox),
+			xmat.RigidCheckBox(th, "Use encoder", &useEncoderCheckBox),
+			xmat.RigidButton(th, "Open endoder", &openEncoderButton),
+			xmat.RigidEditor(th, "fPort", "<fport>", &fPortEditor),
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+					xmat.RigidEditor(th, "Interval", "<inteval>", &intervalEditor),
+					xmat.RigidCheckBox(th, "Send every X seconds", &repeatCheckbox),
+				)
+			}),
+		)
+	}
+
+	inset := l.Inset{Top: unit.Px(20)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
+		})
 	})
 }
 

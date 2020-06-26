@@ -14,7 +14,9 @@ import (
 	l "gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
+	xmat "github.com/scartill/giox/material"
 )
 
 // This holds the "console" visible text, line number and history (so we can dump everything even when console has been cleared).
@@ -180,11 +182,63 @@ func resetGuiValues() {
 	dataResetGuiValues()
 }
 
+var (
+	mqttButton      widget.Clickable
+	forwarderButton widget.Clickable
+	deviceButton    widget.Clickable
+	loraButton      widget.Clickable
+	controlButton   widget.Clickable
+	dataButton      widget.Clickable
+	outputButton    widget.Clickable
+
+	tabIndex uint
+)
+
 func mainWindow(gtx l.Context, th *material.Theme) {
 	/*!
 	  beginMenu()
 	  beginProvisioner()
 	*/
+
+	for mqttButton.Clicked() {
+		tabIndex = 0
+	}
+
+	for forwarderButton.Clicked() {
+		tabIndex = 1
+	}
+
+	for deviceButton.Clicked() {
+		tabIndex = 2
+	}
+
+	for loraButton.Clicked() {
+		tabIndex = 3
+	}
+
+	for controlButton.Clicked() {
+		tabIndex = 4
+	}
+
+	for dataButton.Clicked() {
+		tabIndex = 5
+	}
+
+	for outputButton.Clicked() {
+		tabIndex = 6
+	}
+
+	tabsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			xmat.RigidButton(th, "MQTT", &mqttButton),
+			xmat.RigidButton(th, "Forwarder", &forwarderButton),
+			xmat.RigidButton(th, "Device", &deviceButton),
+			xmat.RigidButton(th, "LoRa", &loraButton),
+			xmat.RigidButton(th, "Control", &controlButton),
+			xmat.RigidButton(th, "Data", &dataButton),
+			xmat.RigidButton(th, "Output", &outputButton),
+		)
+	})
 
 	wMqttForm := mqttForm(th)
 	wForwarderForm := forwarderForm(th)
@@ -194,33 +248,29 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 	wDataForm := dataForm(th)
 	wOutputForm := outputForm(th)
 
-	inset := l.UniformInset(unit.Px(10))
-	wLeft := func(gtx l.Context) l.Dimensions {
-		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
-			return l.Flex{Axis: l.Vertical}.Layout(gtx, wMqttForm, wForwarderForm, wLoraForm)
-		})
+	var selectedWidget l.FlexChild
+	switch tabIndex {
+	case 0:
+		selectedWidget = wMqttForm
+	case 1:
+		selectedWidget = wForwarderForm
+	case 2:
+		selectedWidget = wDeviceForm
+	case 3:
+		selectedWidget = wLoraForm
+	case 4:
+		selectedWidget = wControlForm
+	case 5:
+		selectedWidget = wDataForm
+	case 6:
+		selectedWidget = wOutputForm
 	}
 
-	wMid := func(gtx l.Context) l.Dimensions {
-		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
-			return l.Flex{Axis: l.Vertical}.Layout(gtx, wDeviceForm)
-		})
-	}
-
-	wRight := func(gtx l.Context) l.Dimensions {
-		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
-			return l.Flex{Axis: l.Vertical}.Layout(gtx, wControlForm, wDataForm, wOutputForm)
-		})
-	}
-
-	inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
-		return l.W.Layout(gtx, func(gtx l.Context) l.Dimensions {
-			return l.Flex{Axis: l.Horizontal}.Layout(gtx,
-				l.Rigid(wLeft),
-				l.Rigid(wMid),
-				l.Rigid(wRight),
-			)
-		})
+	l.NW.Layout(gtx, func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+			tabsWidget,
+			selectedWidget,
+		)
 	})
 }
 
@@ -252,13 +302,15 @@ func main() {
 
 	createLoRaForm()
 	createDeviceForm()
+	createDataForm()
+	tabIndex = 0
 
 	importConf()
 	resetGuiValues()
 	setDevice()
 
 	go func() {
-		w := app.NewWindow(app.Size(unit.Px(1280), unit.Px(1024)))
+		w := app.NewWindow(app.Size(unit.Px(1600), unit.Px(1024)))
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
