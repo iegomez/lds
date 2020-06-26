@@ -56,6 +56,16 @@ func extractInt8(edit *widget.Editor, value *int8, onError int8) {
 	}
 }
 
+func extractInt32(edit *widget.Editor, value *int32, onError int32) {
+	parsed, err := strconv.ParseInt(edit.Text(), 10, 32)
+
+	if err == nil {
+		*value = int32(parsed)
+	} else {
+		*value = onError
+	}
+}
+
 func extractFloat(edit *widget.Editor, value *float64, onError float64) {
 	parsed, err := strconv.ParseFloat(edit.Text(), 64)
 

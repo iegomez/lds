@@ -310,7 +310,7 @@ func main() {
 	setDevice()
 
 	go func() {
-		w := app.NewWindow(app.Size(unit.Px(1600), unit.Px(1024)))
+		w := app.NewWindow(app.Size(unit.Px(1024), unit.Px(800)))
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}

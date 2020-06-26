@@ -1,10 +1,10 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-gioui.org v0.0.0-20200506064104-e97adeedd918 h1:1NnKWkT57Cks9RiADIBezEJtjFaIF5VJ7r2SF8z5SyQ=
-gioui.org v0.0.0-20200506064104-e97adeedd918/go.mod h1:AHI9rFr6AEEHCb8EPVtb/p5M+NMJRKH58IOp8O3Je04=
 gioui.org v0.0.0-20200622185735-5bd0ecea5e43 h1:Nu7QkX+EakW4tOkSB5JqPJ+kxX45Pkme+1hx1BGl9d4=
 gioui.org v0.0.0-20200622185735-5bd0ecea5e43/go.mod h1:jiUwifN9cRl/zmco43aAqh0aV+s9GbhG13KcD+gEpkU=
+gioui.org v0.0.0-20200626143034-f5985b5e7dea h1:MNnySneyOlWrf32pO+nEuuq54DXwVL5H4xRjyiLh6WE=
+gioui.org v0.0.0-20200626143034-f5985b5e7dea/go.mod h1:jiUwifN9cRl/zmco43aAqh0aV+s9GbhG13KcD+gEpkU=
 git.apache.org/thrift.git v0.0.0-20180902110319-2566ecd5d999/go.mod h1:fPE2ZNJGynbRyZ4dJvy6G277gSllfV2HJqblrnkyeyg=
 github.com/Azure/azure-amqp-common-go v1.1.3/go.mod h1:FhZtXirFANw40UXI2ntweO+VOkfaw8s6vZxUiRhLYW8=
 github.com/Azure/azure-sdk-for-go v0.0.0-20180727220559-4e8cbbfb1aea/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
@@ -393,8 +393,6 @@ github.com/rogpeppe/go-internal v1.0.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.1.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rubenv/sql-migrate v0.0.0-20181213081019-5a8808c14925/go.mod h1:WS0rl9eEliYI8DPnr3TOwz4439pay+qNgzJoVya/DmY=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
-github.com/scartill/giox v1.1.0 h1:mpKQ938+MBZAoFdQkaTbwKjtg1ZgoWW45zZhMuIMM+o=
-github.com/scartill/giox v1.1.0/go.mod h1:Zz/KNrBpeoRoCgJ1Ilxvt7VT5qTIqsiQhDZ0fvrm2gI=
 github.com/scartill/giox v1.2.0 h1:B+MhHsZ8N+6tpVJC48B+RKRndHUCrEF8/m3p6DJ2EHQ=
 github.com/scartill/giox v1.2.0/go.mod h1:wzHLFZ0mvrYyBXDd9qNeGRMHqbtimHVozv3JCL6FWtQ=
 github.com/serenize/snaker v0.0.0-20171204205717-a683aaf2d516/go.mod h1:Yow6lPLSAXx2ifx470yD/nUe22Dv5vBvxK/UK9UUTVs=

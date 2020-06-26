@@ -418,7 +418,7 @@ func controlForm(th *material.Theme) l.FlexChild {
 		widgets = append(widgets, subsection)
 	}
 
-	inset := l.Inset{Top: unit.Px(20)}
+	inset := l.Inset{Left: unit.Px(30)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
