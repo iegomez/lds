@@ -15,6 +15,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/scartill/giox"
 	xmat "github.com/scartill/giox/material"
 )
 
@@ -214,6 +215,7 @@ func dataForm(th *material.Theme) l.FlexChild {
 		for i := 0; i < len(config.EncodedType); i++ {
 			etw := &encodedWidgets[i]
 			widgets = append(widgets,
+				xmat.RigidSeparator(th, &giox.Separator{}),
 				l.Rigid(func(gtx l.Context) l.Dimensions {
 					return l.Flex{Axis: l.Horizontal}.Layout(gtx,
 						xmat.RigidEditor(th, "Name", "<name>", &etw.Name),
