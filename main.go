@@ -91,10 +91,12 @@ var (
 )
 
 func buildMenu(th *material.Theme) (l.FlexChild, bool) {
-	/*! handle provisioner */
-
 	if openFile {
 		return buildOpenFile(th)
+	}
+
+	if openProvisioner {
+		return buildProvisioner(th)
 	}
 
 	if saveFile {
@@ -290,6 +292,7 @@ func resetGuiValues() {
 	deviceResetGuiValues()
 	macResetGuiValues()
 	dataResetGuiValues()
+	provResetGuiValues()
 }
 
 var (
@@ -305,9 +308,6 @@ var (
 func mainWindow(gtx l.Context, th *material.Theme) {
 	wOutputForm := outputForm(th)
 
-	/*!
-	  beginProvisioner()
-	*/
 	wMenu, isMenuOpen := buildMenu(th)
 
 	if isMenuOpen {
@@ -413,7 +413,7 @@ func loop(w *app.Window) error {
 }
 
 func main() {
-	/*!	runtime.LockOSThread() */
+	/* runtime.LockOSThread() */
 
 	mw := io.MultiWriter(ow, os.Stderr)
 	log.SetOutput(mw)

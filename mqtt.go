@@ -78,7 +78,7 @@ func mqttForm(th *material.Theme) l.FlexChild {
 	if !cNSClient.IsConnected() {
 		widgets = append(widgets, matx.RigidButton(th, "Connect", &mqttConnectButton))
 	} else {
-		widgets = append(widgets, matx.RigidLabel(th, "MQTT Connected"))
+		widgets = append(widgets, matx.RigidLabel(th, "Forwarder connected"))
 	}
 
 	if mqttClient != nil && mqttClient.IsConnected() {
