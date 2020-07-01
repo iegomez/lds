@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"io/ioutil"
 	"os"
+	"strings"
 
+	"github.com/atotto/clipboard"
 	log "github.com/sirupsen/logrus"
 
 	"gioui.org/app"
@@ -53,130 +56,231 @@ var (
 	interval int32
 )
 
-func beginMenu() {
-	/*!	if imgui.BeginMainMenuBar() {
-	    if imgui.BeginMenu("File") {
+// Menu variables
+var (
+	fileMI           bool
+	fileMIBtn        widget.Clickable
+	fileOpenBtn      widget.Clickable
+	fileSaveBtn      widget.Clickable
+	fileProvisionBtn widget.Clickable
 
-	        if imgui.MenuItem("Open") {
-	            openFile = true
-	            var err error
-	            files, err = ioutil.ReadDir("./confs/")
-	            if err != nil {
-	                log.Errorf("couldn't list files: %s", err)
-	            }
-	        }
+	consoleMI       bool
+	consoleMIBtn    widget.Clickable
+	consoleClearBtn widget.Clickable
+	consoleCopyBtn  widget.Clickable
+	consoleDumpBtn  widget.Clickable
 
-	        if imgui.MenuItem("Save") {
-	            saveFile = true
-	        }
+	logMI            bool
+	logMIBtn         widget.Clickable
+	logLvlDebugBtn   widget.Clickable
+	logLvlInfoBtn    widget.Clickable
+	logLvlWarningBtn widget.Clickable
+	logLvlErrorBtn   widget.Clickable
+)
 
-	        if imgui.MenuItem("Provision") {
-	            openProvisioner = true
-	        }
+var (
+	openFileCombo     giox.Combo
+	openFileCancelBtn widget.Clickable
+	openFileImportBtn widget.Clickable
+)
 
-	        imgui.EndMenu()
-	    }
-	    if imgui.BeginMenu("Console") {
-	        if imgui.MenuItem("Clear") {
-	            ow.Lines = []string{}
-	            ow.Counter = 0
-	        }
+var (
+	saveFileEditor    widget.Editor
+	saveFileCancelBtn widget.Clickable
+	saveFileSaveBtn   widget.Clickable
+)
 
-	        if imgui.MenuItem("Copy") {
-	            err := clipboard.WriteAll(ow.Text)
-	            if err != nil {
-	                log.Errorf("copy error: %s", err)
-	            }
-	        }
+func buildMenu(th *material.Theme) (l.FlexChild, bool) {
+	/*! handle provisioner */
 
-	        if imgui.MenuItem("Dump history") {
-	            writeHistory()
-	        }
+	if openFile {
+		return buildOpenFile(th)
+	}
 
-	        imgui.EndMenu()
-	    }
-	    if imgui.BeginMenu("Log level") {
-	        if imgui.MenuItem("Debug") {
-	            setLevel(log.DebugLevel)
-	        }
-	        if imgui.MenuItem("Info") {
-	            setLevel(log.InfoLevel)
-	        }
-	        if imgui.MenuItem("Warning") {
-	            setLevel(log.WarnLevel)
-	        }
-	        if imgui.MenuItem("Error") {
-	            setLevel(log.ErrorLevel)
-	        }
+	if saveFile {
+		return buildSaveFile(th)
+	}
 
-	        imgui.EndMenu()
-	    }
-	    imgui.EndMainMenuBar()
-	}*/
+	for fileMIBtn.Clicked() {
+		fileMI = true
+	}
+
+	for consoleMIBtn.Clicked() {
+		consoleMI = true
+	}
+
+	for logMIBtn.Clicked() {
+		logMI = true
+	}
+
+	for fileOpenBtn.Clicked() {
+		openFile = true
+		var err error
+		files, err = ioutil.ReadDir("./confs/")
+		if err != nil {
+			log.Errorf("couldn't list files: %s", err)
+		}
+
+		names := []string{}
+		for _, info := range files {
+			filename := fmt.Sprintf("confs/%s", info.Name())
+			if !strings.Contains(filename, ".toml") {
+				continue
+			}
+
+			names = append(names, filename)
+		}
+
+		openFileCombo = giox.MakeCombo(names, "<filename>")
+		fileMI = false
+	}
+
+	for fileSaveBtn.Clicked() {
+		saveFile = true
+		fileMI = false
+	}
+
+	for fileProvisionBtn.Clicked() {
+		openProvisioner = true
+		fileMI = false
+	}
+
+	for consoleClearBtn.Clicked() {
+		ow.Lines = []string{}
+		consoleMI = false
+	}
+
+	for consoleClearBtn.Clicked() {
+		err := clipboard.WriteAll(ow.Text())
+		if err != nil {
+			log.Errorf("copy error: %s", err)
+		}
+		consoleMI = false
+	}
+
+	for consoleDumpBtn.Clicked() {
+		writeHistory()
+		consoleMI = false
+	}
+
+	for logLvlDebugBtn.Clicked() {
+		setLevel(log.DebugLevel)
+		logMI = false
+	}
+
+	for logLvlInfoBtn.Clicked() {
+		setLevel(log.InfoLevel)
+		logMI = false
+	}
+
+	for logLvlWarningBtn.Clicked() {
+		setLevel(log.WarnLevel)
+		logMI = false
+	}
+
+	for logLvlErrorBtn.Clicked() {
+		setLevel(log.ErrorLevel)
+		logMI = false
+	}
+
+	if fileMI {
+		widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				xmat.RigidButton(th, "Open", &fileOpenBtn),
+				xmat.RigidButton(th, "Save", &fileSaveBtn),
+				xmat.RigidButton(th, "Provision", &fileProvisionBtn),
+			)
+		})
+
+		return widget, true
+	}
+
+	if consoleMI {
+		widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				xmat.RigidButton(th, "Clear", &consoleClearBtn),
+				xmat.RigidButton(th, "Copy", &consoleClearBtn),
+				xmat.RigidButton(th, "Dump history", &consoleDumpBtn),
+			)
+		})
+
+		return widget, true
+	}
+
+	if logMI {
+		widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				xmat.RigidButton(th, "Debug", &logLvlDebugBtn),
+				xmat.RigidButton(th, "Info", &logLvlInfoBtn),
+				xmat.RigidButton(th, "Warning", &logLvlWarningBtn),
+				xmat.RigidButton(th, "Error", &logLvlErrorBtn),
+			)
+		})
+
+		return widget, true
+	}
+
+	widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+			xmat.RigidButton(th, "File", &fileMIBtn),
+			xmat.RigidButton(th, "Console", &consoleMIBtn),
+			xmat.RigidButton(th, "Log", &logMIBtn),
+		)
+	})
+
+	return widget, false
 }
 
-func beginOpenFile() {
-	/*!	if openFile {
-	          imgui.OpenPopup("Select file")
-	          openFile = false
-	      }
-	      imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
-	      imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
-	      imgui.PushItemWidth(250.0)
-	      if imgui.BeginPopupModal("Select file") {
-	          if imgui.BeginComboV("Select", *confFile, 0) {
-	              for _, f := range files {
-	                  filename := fmt.Sprintf("confs/%s", f.Name())
-	                  if !strings.Contains(filename, ".toml") {
-	                      continue
-	                  }
-	                  if imgui.SelectableV(filename, *confFile == filename, 0, imgui.Vec2{}) {
-	                      *confFile = filename
-	                  }
-	              }
-	              imgui.EndCombo()
-	          }
-	          imgui.Separator()
-	          if imgui.Button("Cancel") {
-	              imgui.CloseCurrentPopup()
-	          }
-	          imgui.SameLine()
-	          if imgui.Button("Import") {
-	              //Import file.
-	  			importConf()
-	  			resetGuiValues()
-	  			setDevice()
-	              imgui.CloseCurrentPopup()
-	              //Close popup.
-	          }
-	          imgui.EndPopup()
-	      }*/
+func buildOpenFile(th *material.Theme) (l.FlexChild, bool) {
+
+	*confFile = openFileCombo.SelectedText()
+
+	for openFileCancelBtn.Clicked() {
+		openFile = false
+	}
+
+	for openFileImportBtn.Clicked() {
+		importConf()
+		resetGuiValues()
+		setDevice()
+		openFile = false
+	}
+
+	widgets := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			xmat.RigidSection(th, "Select file"),
+			labelCombo(th, "Filename", &openFileCombo),
+			xmat.RigidButton(th, "Cancel", &openFileCancelBtn),
+			xmat.RigidButton(th, "Import", &openFileImportBtn),
+		)
+	})
+
+	return widgets, true
 }
 
-func beginSaveFile() {
-	/*!	if saveFile {
-	      imgui.OpenPopup("Save file")
-	      saveFile = false
-	  }
-	  imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
-	  imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
-	  imgui.PushItemWidth(250.0)
-	  if imgui.BeginPopupModal("Save file") {
+func buildSaveFile(th *material.Theme) (l.FlexChild, bool) {
 
-	      imgui.InputText("Name", &saveFilename)
-	      imgui.Separator()
-	      if imgui.Button("Cancel") {
-	          imgui.CloseCurrentPopup()
-	      }
-	      imgui.SameLine()
-	      if imgui.Button("Save") {
-	          //Import file.
-	          exportConf(fmt.Sprintf("confs/%s", saveFilename))
-	          imgui.CloseCurrentPopup()
-	          //Close popup.
-	      }
-	      imgui.EndPopup()
-	  }*/
+	saveFilename = saveFileEditor.Text()
+
+	for saveFileCancelBtn.Clicked() {
+		saveFile = false
+	}
+
+	for saveFileSaveBtn.Clicked() {
+		exportConf(fmt.Sprintf("confs/%s", saveFilename))
+		saveFile = false
+	}
+
+	widgets := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			xmat.RigidSection(th, "Save file"),
+			xmat.RigidEditor(th, "Name", "<filename>", &saveFileEditor),
+			xmat.RigidButton(th, "Cancel", &saveFileCancelBtn),
+			xmat.RigidButton(th, "Save", &saveFileSaveBtn),
+		)
+	})
+
+	return widgets, true
 }
 
 func resetGuiValues() {
@@ -199,10 +303,23 @@ var (
 )
 
 func mainWindow(gtx l.Context, th *material.Theme) {
+	wOutputForm := outputForm(th)
+
 	/*!
-	  beginMenu()
 	  beginProvisioner()
 	*/
+	wMenu, isMenuOpen := buildMenu(th)
+
+	if isMenuOpen {
+		l.NW.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				wMenu,
+				xmat.RigidSeparator(th, &giox.Separator{}),
+				wOutputForm,
+			)
+		})
+		return
+	}
 
 	for serversButton.Clicked() {
 		tabIndex = 0
@@ -241,7 +358,6 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 	wLoraForm := loRaForm(th)
 	wControlForm := controlForm(th)
 	wDataForm := dataForm(th)
-	wOutputForm := outputForm(th)
 
 	var selectedWidget l.FlexChild
 	switch tabIndex {
@@ -265,6 +381,8 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 
 	l.NW.Layout(gtx, func(gtx l.Context) l.Dimensions {
 		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			wMenu,
+			xmat.RigidSeparator(th, &giox.Separator{}),
 			l.Rigid(func(gtx l.Context) l.Dimensions {
 				return l.Flex{Axis: l.Horizontal}.Layout(gtx,
 					tabsWidget,
