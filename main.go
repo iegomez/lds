@@ -23,22 +23,26 @@ import (
 
 // This holds the "console" visible text, line number and history (so we can dump everything even when console has been cleared).
 type outputWriter struct {
-	Text    string
-	Counter int
-	History string
+	Lines []string
 }
 
 // Write just appends to text and history, using the counter as line number for the text.
 // It also allows outputWriter to implement the Writer interface so it may be passed to the logger.
 func (o *outputWriter) Write(p []byte) (n int, err error) {
-	o.Counter++
-	o.Text = fmt.Sprintf("%s%05d  %s", o.Text, o.Counter, string(p))
-	o.History = fmt.Sprintf("%s%s", o.History, string(p))
+	o.Lines = append(o.Lines, string(p))
 	return len(p), nil
 }
 
+func (o *outputWriter) Text() string {
+	text := ""
+	for i := 0; i < len(o.Lines); i++ {
+		text = fmt.Sprintf("%s%05d  %s", text, i, o.Lines[i])
+	}
+	return text
+}
+
 // The writer instance
-var ow = &outputWriter{Text: "", Counter: 0}
+var ow = &outputWriter{Lines: []string{}}
 
 // Message sending control and status.
 var (
@@ -74,7 +78,7 @@ func beginMenu() {
 	    }
 	    if imgui.BeginMenu("Console") {
 	        if imgui.MenuItem("Clear") {
-	            ow.Text = ""
+	            ow.Lines = []string{}
 	            ow.Counter = 0
 	        }
 
@@ -302,6 +306,7 @@ func main() {
 	createLoRaForm()
 	createDeviceForm()
 	createDataForm()
+	createOutputForm()
 	tabIndex = 0
 
 	importConf()
@@ -309,7 +314,7 @@ func main() {
 	setDevice()
 
 	go func() {
-		w := app.NewWindow(app.Size(unit.Px(1024), unit.Px(800)))
+		w := app.NewWindow(app.Size(unit.Px(1024), unit.Px(1024)))
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
