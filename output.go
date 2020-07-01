@@ -7,9 +7,11 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"gioui.org/layout"
 	l "gioui.org/layout"
+	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
+	xmat "github.com/scartill/giox/material"
 )
 
 func writeHistory() {
@@ -28,9 +30,24 @@ func setLevel(level log.Level) {
 	log.SetLevel(level)
 }
 
+var logEditor widget.Editor
+
 func outputForm(th *material.Theme) l.FlexChild {
-	return layout.Rigid(func(gtx l.Context) l.Dimensions {
-		return material.Caption(th, "output").Layout(gtx)
+	logEditor.SetText(ow.Text)
+	editorStyle := material.Editor(th, &logEditor, "")
+
+	widgets := []l.FlexChild{
+		xmat.RigidSection(th, "Output"),
+		l.Rigid(func(gtx l.Context) l.Dimensions {
+			return editorStyle.Layout(gtx)
+		}),
+	}
+
+	inset := l.Inset{Left: unit.Px(30)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
+		})
 	})
 }
 

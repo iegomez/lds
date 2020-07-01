@@ -253,17 +253,24 @@ func deviceForm(th *material.Theme) l.FlexChild {
 	}
 
 	if !comboOpen {
-		widgets = append(widgets, []l.FlexChild{
+		widgets = append(widgets,
 			xmat.RigidCheckBox(th, "Disable frame counter validation", &disableFCWCheckbox),
+		)
+
+		buttons := []l.FlexChild{
 			xmat.RigidButton(th, "Join", &joinButton),
-		}...)
+		}
 
 		if cDevice != nil {
-			widgets = append(widgets, []l.FlexChild{
+			buttons = append(buttons, []l.FlexChild{
 				xmat.RigidButton(th, "Reset device", &resetButton),
 				xmat.RigidButton(th, "Set values", &setValuesButton),
 			}...)
 		}
+
+		widgets = append(widgets, l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Horizontal}.Layout(gtx, buttons...)
+		}))
 
 		if cDevice != nil {
 			widgets = append(widgets, []l.FlexChild{

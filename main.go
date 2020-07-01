@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
 	"io"
 	"os"
 
@@ -189,7 +190,6 @@ var (
 	loraButton    widget.Clickable
 	controlButton widget.Clickable
 	dataButton    widget.Clickable
-	outputButton  widget.Clickable
 
 	tabIndex uint
 )
@@ -220,18 +220,14 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 		tabIndex = 4
 	}
 
-	for outputButton.Clicked() {
-		tabIndex = 5
-	}
-
 	tabsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
+		gtx.Constraints = l.Exact(image.Point{X: 100, Y: 500})
 		return l.Flex{Axis: l.Vertical}.Layout(gtx,
 			xmat.RigidButton(th, "Connect", &serversButton),
 			xmat.RigidButton(th, "Device", &deviceButton),
 			xmat.RigidButton(th, "LoRa", &loraButton),
 			xmat.RigidButton(th, "Control", &controlButton),
 			xmat.RigidButton(th, "Data", &dataButton),
-			xmat.RigidButton(th, "Output", &outputButton),
 		)
 	})
 
@@ -261,14 +257,18 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 		selectedWidget = wControlForm
 	case 4:
 		selectedWidget = wDataForm
-	case 5:
-		selectedWidget = wOutputForm
 	}
 
 	l.NW.Layout(gtx, func(gtx l.Context) l.Dimensions {
-		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
-			tabsWidget,
-			selectedWidget,
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+					tabsWidget,
+					selectedWidget,
+				)
+			}),
+			xmat.RigidSeparator(th, &giox.Separator{}),
+			wOutputForm,
 		)
 	})
 }
