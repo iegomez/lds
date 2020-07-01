@@ -16,6 +16,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/scartill/giox"
 	xmat "github.com/scartill/giox/material"
 )
 
@@ -183,13 +184,12 @@ func resetGuiValues() {
 }
 
 var (
-	mqttButton      widget.Clickable
-	forwarderButton widget.Clickable
-	deviceButton    widget.Clickable
-	loraButton      widget.Clickable
-	controlButton   widget.Clickable
-	dataButton      widget.Clickable
-	outputButton    widget.Clickable
+	serversButton widget.Clickable
+	deviceButton  widget.Clickable
+	loraButton    widget.Clickable
+	controlButton widget.Clickable
+	dataButton    widget.Clickable
+	outputButton  widget.Clickable
 
 	tabIndex uint
 )
@@ -200,38 +200,33 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 	  beginProvisioner()
 	*/
 
-	for mqttButton.Clicked() {
+	for serversButton.Clicked() {
 		tabIndex = 0
 	}
 
-	for forwarderButton.Clicked() {
+	for deviceButton.Clicked() {
 		tabIndex = 1
 	}
 
-	for deviceButton.Clicked() {
+	for loraButton.Clicked() {
 		tabIndex = 2
 	}
 
-	for loraButton.Clicked() {
+	for controlButton.Clicked() {
 		tabIndex = 3
 	}
 
-	for controlButton.Clicked() {
+	for dataButton.Clicked() {
 		tabIndex = 4
 	}
 
-	for dataButton.Clicked() {
-		tabIndex = 5
-	}
-
 	for outputButton.Clicked() {
-		tabIndex = 6
+		tabIndex = 5
 	}
 
 	tabsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
 		return l.Flex{Axis: l.Vertical}.Layout(gtx,
-			xmat.RigidButton(th, "MQTT", &mqttButton),
-			xmat.RigidButton(th, "Forwarder", &forwarderButton),
+			xmat.RigidButton(th, "Connect", &serversButton),
 			xmat.RigidButton(th, "Device", &deviceButton),
 			xmat.RigidButton(th, "LoRa", &loraButton),
 			xmat.RigidButton(th, "Control", &controlButton),
@@ -251,18 +246,22 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 	var selectedWidget l.FlexChild
 	switch tabIndex {
 	case 0:
-		selectedWidget = wMqttForm
+		selectedWidget = l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				wMqttForm,
+				xmat.RigidSeparator(th, &giox.Separator{}),
+				wForwarderForm,
+			)
+		})
 	case 1:
-		selectedWidget = wForwarderForm
-	case 2:
 		selectedWidget = wDeviceForm
-	case 3:
+	case 2:
 		selectedWidget = wLoraForm
-	case 4:
+	case 3:
 		selectedWidget = wControlForm
-	case 5:
+	case 4:
 		selectedWidget = wDataForm
-	case 6:
+	case 5:
 		selectedWidget = wOutputForm
 	}
 
