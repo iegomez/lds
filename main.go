@@ -438,6 +438,7 @@ func main() {
 	setDevice()
 
 	go func() {
+		defer os.Exit(0)
 		w := app.NewWindow(app.Size(unit.Px(1024), unit.Px(1024)))
 		if err := loop(w); err != nil {
 			log.Fatal(err)
