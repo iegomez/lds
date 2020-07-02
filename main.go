@@ -64,11 +64,12 @@ var (
 	fileSaveBtn      widget.Clickable
 	fileProvisionBtn widget.Clickable
 
-	consoleMI       bool
-	consoleMIBtn    widget.Clickable
-	consoleClearBtn widget.Clickable
-	consoleCopyBtn  widget.Clickable
-	consoleDumpBtn  widget.Clickable
+	consoleMI        bool
+	consoleMIBtn     widget.Clickable
+	consoleClearBtn  widget.Clickable
+	consoleCopyBtn   widget.Clickable
+	consoleDumpBtn   widget.Clickable
+	consoleCancelBtn widget.Clickable
 
 	logMI            bool
 	logMIBtn         widget.Clickable
@@ -165,6 +166,10 @@ func buildMenu(th *material.Theme) (l.FlexChild, bool) {
 		consoleMI = false
 	}
 
+	for consoleCancelBtn.Clicked() {
+		consoleMI = false
+	}
+
 	for logLvlDebugBtn.Clicked() {
 		setLevel(log.DebugLevel)
 		logMI = false
@@ -203,6 +208,7 @@ func buildMenu(th *material.Theme) (l.FlexChild, bool) {
 				xmat.RigidButton(th, "Clear", &consoleClearBtn),
 				xmat.RigidButton(th, "Copy", &consoleClearBtn),
 				xmat.RigidButton(th, "Dump history", &consoleDumpBtn),
+				xmat.RigidButton(th, "Cancel", &consoleCancelBtn),
 			)
 		})
 
