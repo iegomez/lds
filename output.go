@@ -32,7 +32,7 @@ func setLevel(level log.Level) {
 var logList l.List
 
 func createOutputForm() {
-	logList = l.List{Axis: l.Vertical, Alignment: l.Start}
+	logList = l.List{Axis: l.Vertical, Alignment: l.Start, ScrollToEnd: true}
 }
 
 func outputForm(th *material.Theme) l.FlexChild {
