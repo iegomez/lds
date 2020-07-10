@@ -32,7 +32,7 @@ func setLevel(level log.Level) {
 var logList l.List
 
 func createOutputForm() {
-	logList = l.List{Axis: l.Vertical, Alignment: l.Start, ScrollToEnd: true}
+	logList = l.List{Axis: l.Vertical, ScrollToEnd: true}
 }
 
 func outputForm(th *material.Theme) l.FlexChild {
@@ -46,7 +46,7 @@ func outputForm(th *material.Theme) l.FlexChild {
 		}),
 	}
 
-	inset := l.Inset{Left: unit.Px(30)}
+	inset := l.Inset{Left: unit.Dp(30)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)

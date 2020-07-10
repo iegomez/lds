@@ -155,7 +155,7 @@ func loRaForm(th *material.Theme) l.FlexChild {
 		}...)
 	}
 
-	inset := l.Inset{Left: unit.Px(30)}
+	inset := l.Inset{Left: unit.Dp(30)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)

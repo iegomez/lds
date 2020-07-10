@@ -445,7 +445,7 @@ func main() {
 
 	go func() {
 		defer os.Exit(0)
-		w := app.NewWindow(app.Size(unit.Px(1024), unit.Px(1024)))
+		w := app.NewWindow(app.Size(unit.Dp(1024), unit.Dp(768)))
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}

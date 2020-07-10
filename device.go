@@ -281,7 +281,7 @@ func deviceForm(th *material.Theme) l.FlexChild {
 		}
 	}
 
-	inset := l.Inset{Left: unit.Px(30)}
+	inset := l.Inset{Left: unit.Dp(30)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
@@ -423,7 +423,7 @@ func resetDeviceSubform(th *material.Theme) (bool, l.FlexChild) {
 		xmat.RigidButton(th, "Confirm", &resetConfirmButton),
 	}
 
-	inset := l.Inset{Top: unit.Px(20)}
+	inset := l.Inset{Top: unit.Dp(20)}
 	return true, l.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)
@@ -476,7 +476,7 @@ func setRedisValuesSubform(th *material.Theme) (bool, layout.FlexChild) {
 		xmat.RigidButton(th, "Confirm", &setRedisValuesConfirmButton),
 	}
 
-	inset := layout.Inset{Top: unit.Px(20)}
+	inset := layout.Inset{Top: unit.Dp(20)}
 	return true, layout.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, widgets...)

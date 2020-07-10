@@ -401,7 +401,7 @@ func controlForm(th *material.Theme) l.FlexChild {
 				subwidgets = append(subwidgets, widget)
 			}
 
-			subinset := l.Inset{Left: unit.Px(20)}
+			subinset := l.Inset{Left: unit.Dp(20)}
 			settingsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
 				return subinset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 					return l.Flex{Axis: l.Horizontal}.Layout(gtx,
@@ -418,7 +418,7 @@ func controlForm(th *material.Theme) l.FlexChild {
 		widgets = append(widgets, subsection)
 	}
 
-	inset := l.Inset{Left: unit.Px(30)}
+	inset := l.Inset{Left: unit.Dp(30)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
 		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
 			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)

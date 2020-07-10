@@ -12,12 +12,12 @@ import (
 )
 
 func labelCombo(th *material.Theme, label string, combo *giox.Combo) l.FlexChild {
-	inset := l.Inset{Top: unit.Px(10), Right: unit.Px(10)}
+	inset := l.Inset{Top: unit.Dp(10), Right: unit.Dp(10)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
 		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
 			l.Rigid(func(gtx l.Context) l.Dimensions {
 				return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
-					return material.Label(th, unit.Px(16), label).Layout(gtx)
+					return material.Label(th, unit.Dp(16), label).Layout(gtx)
 				})
 			}),
 			l.Rigid(func(gtx l.Context) l.Dimensions {
