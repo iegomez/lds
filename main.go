@@ -63,6 +63,7 @@ var (
 	fileOpenBtn      widget.Clickable
 	fileSaveBtn      widget.Clickable
 	fileProvisionBtn widget.Clickable
+	fileCancelBtn    widget.Clickable
 
 	consoleMI        bool
 	consoleMIBtn     widget.Clickable
@@ -148,6 +149,10 @@ func buildMenu(th *material.Theme) (l.FlexChild, bool) {
 		fileMI = false
 	}
 
+	for fileCancelBtn.Clicked() {
+		fileMI = false
+	}
+
 	for consoleClearBtn.Clicked() {
 		ow.Lines = []string{}
 		consoleMI = false
@@ -196,6 +201,7 @@ func buildMenu(th *material.Theme) (l.FlexChild, bool) {
 				xmat.RigidButton(th, "Open", &fileOpenBtn),
 				xmat.RigidButton(th, "Save", &fileSaveBtn),
 				xmat.RigidButton(th, "Provision", &fileProvisionBtn),
+				xmat.RigidButton(th, "Cancel", &fileCancelBtn),
 			)
 		})
 
