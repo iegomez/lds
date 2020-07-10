@@ -216,14 +216,14 @@ func deviceForm(th *material.Theme) l.FlexChild {
 	leftWidgets := []layout.FlexChild{
 		xmat.RigidSection(th, "Device"),
 		xmat.RigidEditor(th, "DevEUI", "<device EUI>", &deviceEUIEdit),
-		xmat.RigidEditor(th, "DevAddress", "device address", &deviceAddressEdit),
-		xmat.RigidEditor(th, "NwkSEncKey", "network session key", &nwkSEncKeyEdit),
-		xmat.RigidEditor(th, "SNwkSIntKey", "network session key", &sNwkSIntKeyEdit),
-		xmat.RigidEditor(th, "FNwkSIntKey", "forward session key", &fNwkSIntKeyEdit),
-		xmat.RigidEditor(th, "AppSKey", "application session key", &appSKeyEdit),
-		xmat.RigidEditor(th, "NwkKey", "network key", &nwkKeyEdit),
-		xmat.RigidEditor(th, "AppKey", "application key", &appKeyEdit),
-		xmat.RigidEditor(th, "JoinEUI", "join EUI", &joinEUIEdit),
+		xmat.RigidEditor(th, "DevAddress", "<device address>", &deviceAddressEdit),
+		xmat.RigidEditor(th, "NwkSEncKey", "<network session key>", &nwkSEncKeyEdit),
+		xmat.RigidEditor(th, "SNwkSIntKey", "<network session key>", &sNwkSIntKeyEdit),
+		xmat.RigidEditor(th, "FNwkSIntKey", "<forward session key>", &fNwkSIntKeyEdit),
+		xmat.RigidEditor(th, "AppSKey", "<application session key>", &appSKeyEdit),
+		xmat.RigidEditor(th, "NwkKey", "<network key>", &nwkKeyEdit),
+		xmat.RigidEditor(th, "AppKey", "<application key>", &appKeyEdit),
+		xmat.RigidEditor(th, "JoinEUI", "<join EUI>", &joinEUIEdit),
 	}
 
 	comboOpen := marshalerCombo.IsExpanded() ||

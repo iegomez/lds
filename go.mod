@@ -15,7 +15,7 @@ require (
 	github.com/iegomez/lsp v0.0.0-20190702162050-add458041bb0
 	github.com/pkg/errors v0.8.1
 	github.com/robertkrimen/otto v0.0.0-20180617131154-15f95af6e78d
-	github.com/scartill/giox v1.3.0
+	github.com/scartill/giox v1.3.2
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.4.0 // indirect
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b // indirect

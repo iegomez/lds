@@ -69,8 +69,8 @@ func mqttForm(th *material.Theme) l.FlexChild {
 	widgets := []l.FlexChild{
 		matx.RigidSection(th, "MQTT & Gateway"),
 		matx.RigidEditor(th, "MQTT Server:", "192.168.1.1", &mqttServerEdit),
-		matx.RigidEditor(th, "MQTT User:", "", &mqttUserEdit),
-		matx.RigidEditor(th, "MQTT Password:", "", &mqttPasswordEdit),
+		matx.RigidEditor(th, "MQTT User:", "<username>", &mqttUserEdit),
+		matx.RigidEditor(th, "MQTT Password:", "<password>", &mqttPasswordEdit),
 		matx.RigidEditor(th, "Gateway MAC:", "DEADBEEFDEADBEEF", &mqttMACEdit),
 		matx.RigidEditor(th, "Downlink Topic:", "gateway/%s/command/down", &mqttDownlinkEdit),
 		matx.RigidEditor(th, "Uplink Topic:", "gateway/%s/event/up", &mqttUplinkEdit)}
