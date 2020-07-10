@@ -213,7 +213,7 @@ func deviceForm(th *material.Theme) l.FlexChild {
 		}
 	}
 
-	widgets := []layout.FlexChild{
+	leftWidgets := []layout.FlexChild{
 		xmat.RigidSection(th, "Device"),
 		xmat.RigidEditor(th, "DevEUI", "<device EUI>", &deviceEUIEdit),
 		xmat.RigidEditor(th, "DevAddress", "device address", &deviceAddressEdit),
@@ -232,28 +232,32 @@ func deviceForm(th *material.Theme) l.FlexChild {
 		mTypeCombo.IsExpanded() ||
 		profileCombo.IsExpanded()
 
+	rightWidgets := []l.FlexChild{
+		xmat.RigidSection(th, ""), // Placeholder
+	}
+
 	if !comboOpen || marshalerCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(th, "Marshaler", &marshalerCombo))
+		rightWidgets = append(rightWidgets, labelCombo(th, "Marshaler", &marshalerCombo))
 	}
 
 	if !comboOpen || majorVersionCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(th, "LoRaWAN Major", &majorVersionCombo))
+		rightWidgets = append(rightWidgets, labelCombo(th, "LoRaWAN Major", &majorVersionCombo))
 	}
 
 	if !comboOpen || macVersionCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(th, "MAC Version", &macVersionCombo))
+		rightWidgets = append(rightWidgets, labelCombo(th, "MAC Version", &macVersionCombo))
 	}
 
 	if !comboOpen || mTypeCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(th, "MType", &mTypeCombo))
+		rightWidgets = append(rightWidgets, labelCombo(th, "MType", &mTypeCombo))
 	}
 
 	if !comboOpen || profileCombo.IsExpanded() {
-		widgets = append(widgets, labelCombo(th, "Profile", &profileCombo))
+		rightWidgets = append(rightWidgets, labelCombo(th, "Profile", &profileCombo))
 	}
 
 	if !comboOpen {
-		widgets = append(widgets,
+		rightWidgets = append(rightWidgets,
 			xmat.RigidCheckBox(th, "Disable frame counter validation", &disableFCWCheckbox),
 		)
 
@@ -268,12 +272,12 @@ func deviceForm(th *material.Theme) l.FlexChild {
 			}...)
 		}
 
-		widgets = append(widgets, l.Rigid(func(gtx l.Context) l.Dimensions {
+		rightWidgets = append(rightWidgets, l.Rigid(func(gtx l.Context) l.Dimensions {
 			return l.Flex{Axis: l.Horizontal}.Layout(gtx, buttons...)
 		}))
 
 		if cDevice != nil {
-			widgets = append(widgets, []l.FlexChild{
+			rightWidgets = append(rightWidgets, []l.FlexChild{
 				xmat.RigidLabel(th, fmt.Sprintf("DlFCnt: %d - DevNonce:  %d", cDevice.DlFcnt, cDevice.DevNonce)),
 				xmat.RigidLabel(th, fmt.Sprintf("UlFCnt: %d - JoinNonce: %d", cDevice.UlFcnt, cDevice.JoinNonce)),
 				xmat.RigidLabel(th, fmt.Sprintf("Joined: %t", cDevice.Joined)),
@@ -283,9 +287,18 @@ func deviceForm(th *material.Theme) l.FlexChild {
 
 	inset := l.Inset{Left: unit.Dp(30)}
 	return l.Rigid(func(gtx l.Context) l.Dimensions {
-		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
-			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
-		})
+		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+					return l.Flex{Axis: l.Vertical}.Layout(gtx, leftWidgets...)
+				})
+			}),
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+					return l.Flex{Axis: l.Vertical}.Layout(gtx, rightWidgets...)
+				})
+			}),
+		)
 	})
 }
 
