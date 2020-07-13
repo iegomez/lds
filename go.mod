@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	gioui.org v0.0.0-20200712204002-a54b46059540
-	gioui.org/example v0.0.0-20200625142128-db03b0898d51 // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/atotto/clipboard v0.1.2
 	github.com/brocaar/chirpstack-api/go v0.0.0-20191211112942-a2d1c6285030
@@ -22,7 +21,6 @@ require (
 	github.com/robertkrimen/otto v0.0.0-20191219234010-c382bd3c16ff
 	github.com/scartill/giox v1.4.0
 	github.com/sirupsen/logrus v1.6.0
-	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.6.1 // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae // indirect
