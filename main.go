@@ -354,7 +354,9 @@ func mainWindow(gtx l.Context, th *material.Theme) {
 	}
 
 	tabsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
-		gtx.Constraints = l.Exact(image.Point{X: 100, Y: 500})
+		p100 := gtx.Px(unit.Dp(100))
+		p500 := gtx.Px(unit.Dp(500))
+		gtx.Constraints = l.Exact(image.Point{X: p100, Y: p500})
 		return l.Flex{Axis: l.Vertical}.Layout(gtx,
 			xmat.RigidButton(th, "Connect", &serversButton),
 			xmat.RigidButton(th, "Device", &deviceButton),
