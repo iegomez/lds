@@ -3,13 +3,12 @@ package main
 import (
 	"strconv"
 
-	"github.com/brocaar/lorawan"
-	xmat "github.com/scartill/giox/material"
-
 	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/brocaar/lorawan"
+	xmat "github.com/scartill/giox/material"
 )
 
 type settingWidget struct {
