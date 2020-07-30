@@ -3,15 +3,13 @@ package main
 import (
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/iegomez/lds/lds"
-
 	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/iegomez/lds/lds"
 	matx "github.com/scartill/giox/material"
+	log "github.com/sirupsen/logrus"
 )
 
 // cNSClient is a direct NetworkServer connection handle

@@ -5,12 +5,11 @@ import (
 	"os"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
 	xmat "github.com/scartill/giox/material"
+	log "github.com/sirupsen/logrus"
 )
 
 func writeHistory() {

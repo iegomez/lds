@@ -3,12 +3,11 @@ package main
 import (
 	"strconv"
 
-	lwband "github.com/brocaar/lorawan/band"
-
 	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	lwband "github.com/brocaar/lorawan/band"
 	"github.com/scartill/giox"
 	xmat "github.com/scartill/giox/material"
 )

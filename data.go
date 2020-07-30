@@ -4,19 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	c "strconv"
+	"strconv"
 	"time"
-
-	"github.com/pkg/errors"
-	"github.com/robertkrimen/otto"
-	log "github.com/sirupsen/logrus"
 
 	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/pkg/errors"
+	"github.com/robertkrimen/otto"
 	"github.com/scartill/giox"
 	xmat "github.com/scartill/giox/material"
+	log "github.com/sirupsen/logrus"
 )
 
 type encodedType struct {
@@ -92,13 +91,13 @@ func dataResetGuiValues() {
 	rawBytesEditor.SetText(config.RawPayload.Payload)
 	sendRawCheckbox.Value = config.RawPayload.UseRaw
 	useEncoderCheckBox.Value = config.RawPayload.UseEncoder
-	fPortEditor.SetText(c.Itoa(config.RawPayload.FPort))
+	fPortEditor.SetText(strconv.Itoa(config.RawPayload.FPort))
 	intervalEditor.SetText(fmt.Sprintf("%d", interval))
 	repeatCheckbox.Value = repeat
 
 	for i := 0; i < len(config.EncodedType); i++ {
 		encodedWidgets[i].Name.SetText(config.EncodedType[i].Name)
-		encodedWidgets[i].NumBytes.SetText(c.Itoa(config.EncodedType[i].NumBytes))
+		encodedWidgets[i].NumBytes.SetText(strconv.Itoa(config.EncodedType[i].NumBytes))
 		encodedWidgets[i].IsFloat.Value = config.EncodedType[i].IsFloat
 		encodedWidgets[i].Value.SetText(
 			fmt.Sprintf("%f", config.EncodedType[i].Value))

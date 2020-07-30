@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	paho "github.com/eclipse/paho.mqtt.golang"
-	log "github.com/sirupsen/logrus"
-
 	l "gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	paho "github.com/eclipse/paho.mqtt.golang"
 	matx "github.com/scartill/giox/material"
+	log "github.com/sirupsen/logrus"
 )
 
 var mqttClient paho.Client

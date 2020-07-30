@@ -8,9 +8,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/brocaar/lorawan"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/iegomez/lds/lds"
+	log "github.com/sirupsen/logrus"
 )
 
 type redisConf struct {
@@ -46,49 +45,26 @@ var (
 	files        []os.FileInfo
 	saveFile     bool
 	saveFilename string
-	mwOpen       = true
 )
+
+const defaultMaxExecTime = 100
 
 func importConf() {
 
 	//When config hasn't been initialized we need to provide fresh zero instances with some defaults.
 	//Decoding the conf file will override any present option.
 	if config == nil {
-		cMqtt := mqtt{}
-
-		cForwarder := forwarder{}
-
-		cGw := gateway{}
-
-		cDev := device{
-			MType: lorawan.UnconfirmedDataUp,
-		}
-
-		cBand := band{}
-
-		cDr := dataRate{}
-
-		cRx := rxInfo{}
-
-		cPl := rawPayload{
-			MaxExecTime: 100,
-		}
-
-		et := []*encodedType{}
-
-		p := provisioner{}
-
 		config = &tomlConfig{
-			MQTT:        cMqtt,
-			Forwarder:   cForwarder,
-			Band:        cBand,
-			Device:      cDev,
-			GW:          cGw,
-			DR:          cDr,
-			RXInfo:      cRx,
-			RawPayload:  cPl,
-			EncodedType: et,
-			Provisioner: p,
+			MQTT:        mqtt{},
+			Forwarder:   forwarder{},
+			Band:        band{},
+			Device:      device{MType: lorawan.UnconfirmedDataUp},
+			GW:          gateway{},
+			DR:          dataRate{},
+			RXInfo:      rxInfo{},
+			RawPayload:  rawPayload{MaxExecTime: defaultMaxExecTime},
+			EncodedType: []*encodedType{},
+			Provisioner: provisioner{},
 		}
 	}
 
@@ -97,11 +73,9 @@ func importConf() {
 		return
 	}
 
-	l, err := log.ParseLevel(config.LogLevel)
-	if err != nil {
-		log.SetLevel(log.InfoLevel)
-	} else {
-		log.SetLevel(l)
+	log.SetLevel(log.InfoLevel)
+	if l, err := log.ParseLevel(config.LogLevel); err != nil {
+ 	   log.SetLevel(l)
 	}
 
 	//Try to set redis.
