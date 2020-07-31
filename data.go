@@ -4,11 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
-	"github.com/inkyblackness/imgui-go"
+	l "gioui.org/layout"
+	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
 	"github.com/pkg/errors"
 	"github.com/robertkrimen/otto"
+	"github.com/scartill/giox"
+	xmat "github.com/scartill/giox/material"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,11 +25,6 @@ type encodedType struct {
 	MinValue float64 `toml:"min_value"`
 	IsFloat  bool    `toml:"is_float"`
 	NumBytes int     `toml:"num_bytes"`
-	//String representations.
-	ValueS    string `toml:"-"`
-	MinValueS string `toml:"-"`
-	MaxValueS string `toml:"-"`
-	NumBytesS string `toml:"-"`
 }
 
 //rawPayload holds optional raw bytes payload (hex encoded).
@@ -35,7 +36,6 @@ type rawPayload struct {
 	MaxExecTime int    `toml:"max_exec_time"`
 	Obj         string `toml:"js_object"`
 	FPort       int    `toml:"fport"`
-	FPortS      string `toml:"-"`
 }
 
 var openScript bool
@@ -49,69 +49,119 @@ function Encode(fPort, obj) {
 }
 `
 
-func beginDataForm() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 400, Y: 285})
-	//imgui.SetNextWindowSize(imgui.Vec2{X: 780, Y: 355})
-	imgui.Begin("Data")
-	imgui.Text("Raw data")
-	imgui.PushItemWidth(150.0)
-	imgui.InputTextV("Raw bytes in hex", &config.RawPayload.Payload, imgui.InputTextFlagsCharsHexadecimal, nil)
-	imgui.SameLine()
-	imgui.Checkbox("Send raw", &config.RawPayload.UseRaw)
-	imgui.SameLine()
-	imgui.Checkbox("Use encoder", &config.RawPayload.UseEncoder)
-	imgui.SameLine()
-	if imgui.Button("Open encoder") {
+type encodedTypeWidgets struct {
+	Name         widget.Editor
+	NumBytes     widget.Editor
+	IsFloat      widget.Bool
+	DeleteButton widget.Clickable
+	Value        widget.Editor
+	MaxValue     widget.Editor
+	MinValue     widget.Editor
+}
+
+// MaxEncodedTypes defines max number of simulated data types to send
+const MaxEncodedTypes = 10
+
+var (
+	rawBytesEditor     widget.Editor
+	sendRawCheckbox    widget.Bool
+	useEncoderCheckBox widget.Bool
+	openEncoderButton  widget.Clickable
+	fPortEditor        widget.Editor
+	intervalEditor     widget.Editor
+	repeatCheckbox     widget.Bool
+	sendDataButton     widget.Clickable
+	stopDataButton     widget.Clickable
+	addEncodedType     widget.Clickable
+
+	encodedWidgets []encodedTypeWidgets
+
+	funcEditor        widget.Editor
+	objEditor         widget.Editor
+	clearScriptEditor widget.Clickable
+	closeScriptEditor widget.Clickable
+)
+
+func createDataForm() {
+	encodedWidgets = make([]encodedTypeWidgets, MaxEncodedTypes)
+	openScript = false
+}
+
+func dataResetGuiValues() {
+	rawBytesEditor.SetText(config.RawPayload.Payload)
+	sendRawCheckbox.Value = config.RawPayload.UseRaw
+	useEncoderCheckBox.Value = config.RawPayload.UseEncoder
+	fPortEditor.SetText(strconv.Itoa(config.RawPayload.FPort))
+	intervalEditor.SetText(fmt.Sprintf("%d", interval))
+	repeatCheckbox.Value = repeat
+
+	for i := 0; i < len(config.EncodedType); i++ {
+		encodedWidgets[i].Name.SetText(config.EncodedType[i].Name)
+		encodedWidgets[i].NumBytes.SetText(strconv.Itoa(config.EncodedType[i].NumBytes))
+		encodedWidgets[i].IsFloat.Value = config.EncodedType[i].IsFloat
+		encodedWidgets[i].Value.SetText(
+			fmt.Sprintf("%f", config.EncodedType[i].Value))
+		encodedWidgets[i].MaxValue.SetText(
+			fmt.Sprintf("%f", config.EncodedType[i].MaxValue))
+		encodedWidgets[i].MinValue.SetText(
+			fmt.Sprintf("%f", config.EncodedType[i].MinValue))
+
+	}
+
+	funcEditor.SetText(config.RawPayload.Script)
+	objEditor.SetText(config.RawPayload.Obj)
+}
+
+func dataForm(th *material.Theme) l.FlexChild {
+	config.RawPayload.Payload = rawBytesEditor.Text()
+	config.RawPayload.UseRaw = sendRawCheckbox.Value
+	config.RawPayload.UseEncoder = useEncoderCheckBox.Value
+	extractInt(&fPortEditor, &config.RawPayload.FPort, 0)
+	extractInt32(&intervalEditor, &interval, 1)
+	repeat = repeatCheckbox.Value
+
+	for i := 0; i < len(config.EncodedType); i++ {
+		config.EncodedType[i].Name = encodedWidgets[i].Name.Text()
+		extractInt(&encodedWidgets[i].NumBytes, &config.EncodedType[i].NumBytes, 0)
+		config.EncodedType[i].IsFloat = encodedWidgets[i].IsFloat.Value
+		extractFloat(&encodedWidgets[i].Value, &config.EncodedType[i].Value, 0)
+		extractFloat(&encodedWidgets[i].MaxValue, &config.EncodedType[i].MaxValue, 0)
+		extractFloat(&encodedWidgets[i].MinValue, &config.EncodedType[i].MinValue, 0)
+	}
+
+	config.RawPayload.Script = funcEditor.Text()
+	config.RawPayload.Obj = objEditor.Text()
+
+	for openEncoderButton.Clicked() {
 		openScript = true
 	}
-	imgui.InputTextV(fmt.Sprintf("fPort    ##fport"), &config.RawPayload.FPortS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(config.RawPayload.FPortS, 10, &config.RawPayload.FPort))
-	imgui.SliderInt("X", &interval, 1, 60)
-	imgui.SameLine()
-	imgui.Checkbox("Send every X seconds", &repeat)
+
 	if !running {
-		if imgui.Button("Send data") {
+		for sendDataButton.Clicked() {
 			go run()
 		}
 	}
+
 	if repeat && running {
-		if imgui.Button("Stop") {
+		for stopDataButton.Clicked() {
 			running = false
 		}
 	}
 
-	imgui.Separator()
-
-	imgui.Text("Encoded data")
-	if imgui.Button("Add encoded type") {
+	for addEncodedType.Clicked() {
 		et := &encodedType{
-			Name:      "New type",
-			ValueS:    "0",
-			MaxValueS: "0",
-			MinValueS: "0",
-			NumBytesS: "0",
+			Name:     "New type",
+			Value:    0,
+			MaxValue: 0,
+			MinValue: 0,
+			NumBytes: 0,
 		}
 		config.EncodedType = append(config.EncodedType, et)
 		log.Println("added new type")
 	}
 
 	for i := 0; i < len(config.EncodedType); i++ {
-		delete := false
-		imgui.Separator()
-		imgui.InputText(fmt.Sprintf("Name     ##%d", i), &config.EncodedType[i].Name)
-		imgui.SameLine()
-		imgui.InputTextV(fmt.Sprintf("Bytes    ##%d", i), &config.EncodedType[i].NumBytesS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleInt(config.EncodedType[i].NumBytesS, 10, &config.EncodedType[i].NumBytes))
-		imgui.SameLine()
-		imgui.Checkbox(fmt.Sprintf("Float##%d", i), &config.EncodedType[i].IsFloat)
-		imgui.SameLine()
-		if imgui.Button(fmt.Sprintf("Delete##%d", i)) {
-			delete = true
-		}
-		imgui.InputTextV(fmt.Sprintf("Value    ##%d", i), &config.EncodedType[i].ValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].ValueS, &config.EncodedType[i].Value))
-		imgui.SameLine()
-		imgui.InputTextV(fmt.Sprintf("Max value##%d", i), &config.EncodedType[i].MaxValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].MaxValueS, &config.EncodedType[i].MaxValue))
-		imgui.SameLine()
-		imgui.InputTextV(fmt.Sprintf("Min value##%d", i), &config.EncodedType[i].MinValueS, imgui.InputTextFlagsCharsDecimal|imgui.InputTextFlagsCallbackAlways, handleFloat64(config.EncodedType[i].MinValueS, &config.EncodedType[i].MinValue))
-		if delete {
+		for encodedWidgets[i].DeleteButton.Clicked() {
 			if len(config.EncodedType) == 1 {
 				config.EncodedType = make([]*encodedType, 0)
 			} else {
@@ -121,36 +171,87 @@ func beginDataForm() {
 			}
 		}
 	}
-	imgui.Separator()
-	beginScript()
-	imgui.End()
-}
 
-func beginScript() {
-	if openScript {
-		imgui.OpenPopup("JS encoder")
+	for clearScriptEditor.Clicked() {
+		config.RawPayload.Script = defaultScript
+		funcEditor.SetText(config.RawPayload.Script)
+	}
+
+	for closeScriptEditor.Clicked() {
 		openScript = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: (float32(config.Window.Width) / 2) - 370.0, Y: (float32(config.Window.Height) / 2) - 200.0})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 740, Y: 600})
-	if imgui.BeginPopupModal("JS encoder") {
-		imgui.Text(`If "Use encoder" is checked, you may write a function that accepts a JS object`)
-		imgui.Text(`and returns a byte array that'll be used as the raw bytes when sending data.`)
-		imgui.Text(`The function must be named Encode and accept a port and JS object.`)
-		imgui.InputTextMultilineV("##encoder-function", &config.RawPayload.Script, imgui.Vec2{X: 710, Y: 300}, imgui.InputTextFlagsAllowTabInput, nil)
-		imgui.Separator()
-		imgui.Text("JS object:")
-		imgui.InputTextMultilineV("##encoder-object", &config.RawPayload.Obj, imgui.Vec2{X: 710, Y: 140}, 0, nil)
-		if imgui.Button("Clear##encoder-cancel") {
-			config.RawPayload.Script = defaultScript
-			imgui.CloseCurrentPopup()
+
+	widgets := make([]l.FlexChild, 0)
+	if !openScript {
+		widgets = append(widgets,
+			xmat.RigidSection(th, "Raw Data"),
+			xmat.RigidEditor(th, "Raw bytes in hex", "DEADBEEF", &rawBytesEditor),
+			xmat.RigidCheckBox(th, "Send raw", &sendRawCheckbox),
+			xmat.RigidCheckBox(th, "Use encoder", &useEncoderCheckBox),
+			xmat.RigidButton(th, "Open encoder", &openEncoderButton),
+			xmat.RigidEditor(th, "fPort", "<fport>", &fPortEditor),
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+					xmat.RigidEditor(th, "Interval", "<inteval>", &intervalEditor),
+					xmat.RigidCheckBox(th, "Send every X seconds", &repeatCheckbox),
+				)
+			}),
+		)
+
+		if !running {
+			widgets = append(widgets, xmat.RigidButton(th, "Send data", &sendDataButton))
 		}
-		imgui.SameLine()
-		if imgui.Button("Close##encoder-close") {
-			imgui.CloseCurrentPopup()
+
+		if repeat && running {
+			widgets = append(widgets, xmat.RigidButton(th, "Stop", &stopDataButton))
 		}
-		imgui.EndPopup()
+
+		widgets = append(widgets,
+			xmat.RigidSection(th, "Encoded data"),
+			xmat.RigidButton(th, "Add encoded type", &addEncodedType),
+		)
+
+		for i := 0; i < len(config.EncodedType); i++ {
+			etw := &encodedWidgets[i]
+			widgets = append(widgets,
+				xmat.RigidSeparator(th, &giox.Separator{}),
+				l.Rigid(func(gtx l.Context) l.Dimensions {
+					return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+						xmat.RigidEditor(th, "Name", "<name>", &etw.Name),
+						xmat.RigidEditor(th, "Bytes", "<bytes>", &etw.NumBytes),
+						xmat.RigidCheckBox(th, "Float", &etw.IsFloat),
+						xmat.RigidButton(th, "Delete", &etw.DeleteButton),
+					)
+				}),
+				l.Rigid(func(gtx l.Context) l.Dimensions {
+					return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+						xmat.RigidEditor(th, "Value", "0", &etw.Value),
+						xmat.RigidEditor(th, "Max", "0", &etw.MaxValue),
+						xmat.RigidEditor(th, "Min", "0", &etw.MinValue),
+					)
+				}),
+			)
+		}
+	} else {
+		widgets = append(widgets,
+			xmat.RigidSection(th, "JS Encoder"),
+			xmat.RigidLabel(th, `If "Use encoder" is checked, you may write a function that accepts a JS object`),
+			xmat.RigidLabel(th, `and returns a byte array that'll be used as the raw bytes when sending data.`),
+			xmat.RigidLabel(th, `The function must be named Encode and accept a port and JS object.`),
+			xmat.RigidEditor(th, "Encoder Function", "JS", &funcEditor),
+			xmat.RigidLabel(th, `JS Object:`),
+			xmat.RigidEditor(th, "Encoder object", "JS", &objEditor),
+			xmat.RigidButton(th, "Clear", &clearScriptEditor),
+			xmat.RigidButton(th, "Close", &closeScriptEditor),
+		)
 	}
+
+	inset := l.Inset{Left: unit.Dp(30)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
+		})
+	})
 }
 
 // EncodeToBytes encodes the payload to a slice of bytes.

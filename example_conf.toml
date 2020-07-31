@@ -86,7 +86,4 @@ skip_fcnt_check=true
   addr = "localhost:6379"
   password = ""
   db = 10
-
-[window]
-  width = 1200
-  height = 1000
+  

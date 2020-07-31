@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	l "gioui.org/layout"
+	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
 	paho "github.com/eclipse/paho.mqtt.golang"
-	"github.com/inkyblackness/imgui-go"
+	matx "github.com/scartill/giox/material"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -24,33 +28,68 @@ type gateway struct {
 	BridgeVersion string `toml:"bridge_version"`
 }
 
-func beginMQTTForm() {
-	//imgui.SetNextWindowPos(imgui.Vec2{X: 10, Y: 25})
-	//imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 170})
-	imgui.Begin("MQTT & Gateway")
-	imgui.Separator()
-	imgui.PushItemWidth(250.0)
-	imgui.InputText("Server", &config.MQTT.Server)
-	imgui.InputText("User", &config.MQTT.User)
-	imgui.InputTextV("Password", &config.MQTT.Password, imgui.InputTextFlagsPassword, nil)
-	imgui.InputText("MAC", &config.GW.MAC)
-	imgui.InputText("Downlink topic", &config.MQTT.DownlinkTopic)
-	imgui.InputText("Uplink topic", &config.MQTT.UplinkTopic)
+var (
+	mqttServerEdit       widget.Editor
+	mqttUserEdit         widget.Editor
+	mqttPasswordEdit     widget.Editor
+	mqttMACEdit          widget.Editor
+	mqttDownlinkEdit     widget.Editor
+	mqttUplinkEdit       widget.Editor
+	mqttConnectButton    widget.Clickable
+	mqttDisconnectButton widget.Clickable
+)
+
+func mqttResetGuiValue() {
+	mqttServerEdit.SetText(config.MQTT.Server)
+	mqttUserEdit.SetText(config.MQTT.User)
+	mqttPasswordEdit.SetText(config.MQTT.Password)
+	mqttMACEdit.SetText(config.GW.MAC)
+	mqttDownlinkEdit.SetText(config.MQTT.DownlinkTopic)
+	mqttUplinkEdit.SetText(config.MQTT.UplinkTopic)
+}
+
+func mqttForm(th *material.Theme) l.FlexChild {
+
+	config.MQTT.Server = mqttServerEdit.Text()
+	config.MQTT.User = mqttUserEdit.Text()
+	config.MQTT.Password = mqttPasswordEdit.Text()
+	config.GW.MAC = mqttMACEdit.Text()
+	config.MQTT.DownlinkTopic = mqttDownlinkEdit.Text()
+	config.MQTT.UplinkTopic = mqttUplinkEdit.Text()
+
+	for mqttConnectButton.Clicked() {
+		connectClient()
+	}
+
+	for mqttDisconnectButton.Clicked() {
+		mqttClient.Disconnect(200)
+	}
+
+	widgets := []l.FlexChild{
+		matx.RigidSection(th, "MQTT & Gateway"),
+		matx.RigidEditor(th, "MQTT Server:", "192.168.1.1", &mqttServerEdit),
+		matx.RigidEditor(th, "MQTT User:", "<username>", &mqttUserEdit),
+		matx.RigidEditor(th, "MQTT Password:", "<password>", &mqttPasswordEdit),
+		matx.RigidEditor(th, "Gateway MAC:", "DEADBEEFDEADBEEF", &mqttMACEdit),
+		matx.RigidEditor(th, "Downlink Topic:", "gateway/%s/command/down", &mqttDownlinkEdit),
+		matx.RigidEditor(th, "Uplink Topic:", "gateway/%s/event/up", &mqttUplinkEdit)}
+
 	if !cNSClient.IsConnected() {
-		if imgui.Button("Connect") {
-			connectClient()
-		}
+		widgets = append(widgets, matx.RigidButton(th, "Connect", &mqttConnectButton))
+	} else {
+		widgets = append(widgets, matx.RigidLabel(th, "Forwarder connected"))
 	}
+
 	if mqttClient != nil && mqttClient.IsConnected() {
-		if imgui.Button("Disconnect") {
-			mqttClient.Disconnect(200)
-			log.Infoln("mqtt client disconnected")
-		}
+		widgets = append(widgets, matx.RigidButton(th, "Disconnect", &mqttDisconnectButton))
 	}
-	//Add popus for file administration.
-	beginOpenFile()
-	beginSaveFile()
-	imgui.End()
+
+	inset := l.Inset{Left: unit.Dp(30)}
+	return l.Rigid(func(gtx l.Context) l.Dimensions {
+		return inset.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx, widgets...)
+		})
+	})
 }
 
 func connectClient() error {

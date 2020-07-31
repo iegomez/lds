@@ -8,17 +8,17 @@ For the [ChirpStack](https://chirpstack.io) project, it acts, basically, as a `c
 
 This program was also extended to generate raw PACKET FORWARDER UDP-based protocol as alternative transport, to be used with general LoRaWAN network server (e.g. [lorawan-server](https://github.com/gotthardp/lorawan-server)). Use `forwarder` configuration section to enable.
 
-It has a simple but complete GUI built with [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2, that allows to configure everything that's needed, such as network server address and port or MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
+It has a simple but complete GUI built with [gioui](https://gioui.org/), that allows to configure everything that's needed, such as network server address and port or MQTT broker and credentials, device keys, LoRaWAN version, message marshaling method, data payload, etc.
 
-Please report any bug or request new features by filing and issue.
+Please report any bug or request new features by filing an issue.
 
-![](images/new-gui.png?raw=true)
+![general screenshot](images/new-gui.png?raw=true)
 
-### Requirements
+## Requirements
 
-As mentioned, this program needs OpenGL 3.2 to be installed. Also, it uses Redis to store device addres and keys, frame counters and nonces in OTAA mode.
+As mentioned, this program needs OpenGL 3.2 (for Linux) to be installed. Also, it uses Redis to store device addres and keys, frame counters and nonces in OTAA mode.
 
-### Conf
+## Configuration
 
 The GUI allows to modify all options, but they may also be seeded with a conf file for ease of use. An example file is provided to get an idea, but the program will only load a conf file with the name `conf.toml` located at the same dir as the binary, or if the path is given with the `--conf` flag:
 
@@ -127,7 +127,7 @@ You may also import files located at `working-dir/confs` and save to the same di
 
 When OTAA is set and the device is joined, upon initialization the program will try to load keys and relevant data from Redis, overriding keys from the file.
 
-### Data
+## Data
 
 The data to be sent may be presented as a hex string representation of the raw bytes, using a JS object and a decoding function to extract a bytes array from it, or using our encoding method (which then needs to be decoded accordingly at `lora-app-server`). As a reference, this is how we encode our data:
 
@@ -174,30 +174,43 @@ When using our encoding method, values may be added using the `Add encoded type`
 
 To use your own custom JS encoder, click the "Use encoder" checkbox and the "Open decoder" button to open the form:
 
-![](images/encoder.png?raw=true)
+![encoder screenshot](images/encoder.png?raw=true)
 
-#### MAC Commands
+### MAC Commands
 
 All [lorawan package](https://github.com/brocaar/lorawan) end-device MAC commands are available to be sent with a message. Check desired mac commands and fill their payloads when needed.
 
-### Device provisioning
+## Device provisioning
 
 You may provision devices from a CSV file using the simple https://github.com/iegomez/lsp package. Open the form with File -> Provision, which'll let you input `hostname`, `username` and `password` (click `Login` to get and store a token for further calls), fill the local `path` to point to the desired CSV (click `Load` to retrieve devices from the file) and then click on `Provision` to provision the devices through `lora-app-server's` API. See https://github.com/iegomez/lsp/blob/master/devices-example-format.csv to check the required CSV format.
 
-### Building
+## Building
 
-The package is written in Go and tested with Go 1.12, which can be downloaded from https://golang.org/dl/. The GUI is built using [imgui-go](https://github.com/inkyblackness/imgui-go) and OpenGL 3.2. Finally, the program depends on Redis.  
+The package is written in Go and tested with Go 1.14, which can be downloaded from https://golang.org/dl/. The GUI is built using [gioui](https://gioui.org/) Finally, the program depends on Redis.  
 
-Something like this should work for Debian / Ubuntu / Mint, but please check [imgui-go](https://github.com/inkyblackness/imgui-go) and general OpenGL docs to see requirements for your system:
+### Linux
 
-```
-sudo apt install build-essential xorg-dev libgl1 libgl1-mesa-dev libgl1-mesa-glx redis-server
+Something like this should work for Debian / Ubuntu / Mint, but please check [gioui](https://gioui.org/) and general OpenGL docs to see requirements for your system:
+
+```sh
+sudo apt-get install build-essential xorg-dev libgl1 libgl1-mesa-dev libgl1-mesa-glx redis-server
+sudo apt-get install libxkbcommon-x11-0 libxkbcommon-x11-dev
 ```
 
 Once those are met, you may build the package like this, which will manage dependencies using Go modules: 
 
-```
+```sh
 make
 ```
 
 This will create the `gui` executable.
+
+### Windows
+
+Build was tested under Windows 10, only Go 1.14 and GNU make are required to build the application:
+
+```sh
+make
+```
+
+This will create the `gui.exe` executable.

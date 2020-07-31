@@ -9,3 +9,5 @@ scroll_test
 gui
 /confs
 .vscode
+gui.exe
+__debug_bin

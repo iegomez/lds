@@ -3,76 +3,49 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
 	"io"
 	"io/ioutil"
 	"os"
-	"runtime"
-	"strconv"
 	"strings"
-	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/atotto/clipboard"
-	"github.com/brocaar/lorawan"
-	"github.com/go-gl/gl/v3.2-core/gl"
-	"github.com/go-gl/glfw/v3.2/glfw"
-	"github.com/inkyblackness/imgui-go"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/iegomez/lds/lds"
-)
-
-type redisConf struct {
-	Addr     string `toml:"addr"`
-	Password string `toml:"password"`
-	DB       int    `toml:"db"`
-}
-
-type windowConf struct {
-	Width  int `toml:"width"`
-	Height int `toml:"height"`
-}
-
-type tomlConfig struct {
-	MQTT        mqtt           `toml:"mqtt"`
-	Forwarder   forwarder      `toml:"forwarder"`
-	Band        band           `toml:"band"`
-	Device      device         `toml:"device"`
-	GW          gateway        `toml:"gateway"`
-	DR          dataRate       `toml:"data_rate"`
-	RXInfo      rxInfo         `toml:"rx_info"`
-	RawPayload  rawPayload     `toml:"raw_payload"`
-	EncodedType []*encodedType `toml:"encoded_type"`
-	LogLevel    string         `toml:"log_level"`
-	RedisConf   redisConf      `toml:"redis"`
-	Window      windowConf     `toml:"window"`
-	Provisioner provisioner    `toml:"provisioner"`
-}
-
-// Configuration holders.
-var (
-	confFile *string
-	config   *tomlConfig
+	"gioui.org/app"
+	"gioui.org/font/gofont"
+	"gioui.org/io/system"
+	l "gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
+	"github.com/scartill/giox"
+	xmat "github.com/scartill/giox/material"
 )
 
 // This holds the "console" visible text, line number and history (so we can dump everything even when console has been cleared).
 type outputWriter struct {
-	Text    string
-	Counter int
-	History string
+	Lines []string
 }
 
 // Write just appends to text and history, using the counter as line number for the text.
 // It also allows outputWriter to implement the Writer interface so it may be passed to the logger.
 func (o *outputWriter) Write(p []byte) (n int, err error) {
-	o.Counter++
-	o.Text = fmt.Sprintf("%s%05d  %s", o.Text, o.Counter, string(p))
-	o.History = fmt.Sprintf("%s%s", o.History, string(p))
+	o.Lines = append(o.Lines, string(p))
 	return len(p), nil
 }
 
+func (o *outputWriter) Text() string {
+	text := ""
+	for i := 0; i < len(o.Lines); i++ {
+		text = fmt.Sprintf("%s%05d  %s", text, i, o.Lines[i])
+	}
+	return text
+}
+
 // The writer instance
-var ow = &outputWriter{Text: "", Counter: 0}
+var ow = &outputWriter{Lines: []string{}}
 
 // Message sending control and status.
 var (
@@ -83,314 +56,401 @@ var (
 	interval int32
 )
 
-// Configuration files loading and saving.
+// Menu variables
 var (
-	openFile     bool
-	files        []os.FileInfo
-	saveFile     bool
-	saveFilename string
-	mwOpen       = true
+	fileMI           bool
+	fileMIBtn        widget.Clickable
+	fileOpenBtn      widget.Clickable
+	fileSaveBtn      widget.Clickable
+	fileProvisionBtn widget.Clickable
+	fileCancelBtn    widget.Clickable
+
+	consoleMI        bool
+	consoleMIBtn     widget.Clickable
+	consoleClearBtn  widget.Clickable
+	consoleCopyBtn   widget.Clickable
+	consoleDumpBtn   widget.Clickable
+	consoleCancelBtn widget.Clickable
+
+	logMI            bool
+	logMIBtn         widget.Clickable
+	logLvlDebugBtn   widget.Clickable
+	logLvlInfoBtn    widget.Clickable
+	logLvlWarningBtn widget.Clickable
+	logLvlErrorBtn   widget.Clickable
 )
 
-func importConf() {
+var (
+	openFileCombo     giox.Combo
+	openFileCancelBtn widget.Clickable
+	openFileImportBtn widget.Clickable
+)
 
-	//When config hasn't been initialized we need to provide fresh zero instances with some defaults.
-	//Decoding the conf file will override any present option.
-	if config == nil {
-		cMqtt := mqtt{}
+var (
+	saveFileEditor    widget.Editor
+	saveFileCancelBtn widget.Clickable
+	saveFileSaveBtn   widget.Clickable
+)
 
-		cForwarder := forwarder{}
-
-		cGw := gateway{}
-
-		cDev := device{
-			MType: lorawan.UnconfirmedDataUp,
-		}
-
-		cBand := band{}
-
-		cDr := dataRate{}
-
-		cRx := rxInfo{}
-
-		cPl := rawPayload{
-			MaxExecTime: 100,
-		}
-
-		et := []*encodedType{}
-
-		w := windowConf{
-			Width:  1200,
-			Height: 1000,
-		}
-
-		p := provisioner{}
-
-		config = &tomlConfig{
-			MQTT:        cMqtt,
-			Forwarder:   cForwarder,
-			Band:        cBand,
-			Device:      cDev,
-			GW:          cGw,
-			DR:          cDr,
-			RXInfo:      cRx,
-			RawPayload:  cPl,
-			EncodedType: et,
-			Window:      w,
-			Provisioner: p,
-		}
-	}
-
-	if _, err := toml.DecodeFile(*confFile, &config); err != nil {
-		log.Println(err)
-		return
-	}
-
-	l, err := log.ParseLevel(config.LogLevel)
-	if err != nil {
-		log.SetLevel(log.InfoLevel)
-	} else {
-		log.SetLevel(l)
-	}
-
-	//Try to set redis.
-	lds.StartRedis(config.RedisConf.Addr, config.RedisConf.Password, config.RedisConf.DB)
-
-	for i := 0; i < len(config.EncodedType); i++ {
-		config.EncodedType[i].ValueS = strconv.FormatFloat(config.EncodedType[i].Value, 'f', -1, 64)
-		config.EncodedType[i].MaxValueS = strconv.FormatFloat(config.EncodedType[i].MaxValue, 'f', -1, 64)
-		config.EncodedType[i].MinValueS = strconv.FormatFloat(config.EncodedType[i].MinValue, 'f', -1, 64)
-		config.EncodedType[i].NumBytesS = strconv.Itoa(config.EncodedType[i].NumBytes)
-	}
-
-	//Fill string representations of numeric values.
-	config.DR.BitRateS = strconv.Itoa(config.DR.BitRate)
-	config.RXInfo.ChannelS = strconv.Itoa(config.RXInfo.Channel)
-	config.RXInfo.CrcStatusS = strconv.Itoa(config.RXInfo.CrcStatus)
-	config.RXInfo.FrequencyS = strconv.Itoa(config.RXInfo.Frequency)
-	config.RXInfo.LoRASNRS = strconv.FormatFloat(config.RXInfo.LoRaSNR, 'f', -1, 64)
-	config.RXInfo.RfChainS = strconv.Itoa(config.RXInfo.RfChain)
-	config.RXInfo.RssiS = strconv.Itoa(config.RXInfo.Rssi)
-
-	//Set default script when it's not present.
-	if config.RawPayload.Script == "" {
-		config.RawPayload.Script = defaultScript
-	}
-	config.RawPayload.FPortS = strconv.Itoa(config.RawPayload.FPort)
-
-	//Set the device with the given options.
-	setDevice()
-}
-
-func exportConf(filename string) {
-	if !strings.Contains(filename, ".toml") {
-		filename = fmt.Sprintf("%s.toml", filename)
-	}
-	f, err := os.Create(filename)
-	if err != nil {
-		log.Errorf("export error: %s", err)
-		return
-	}
-	encoder := toml.NewEncoder(f)
-	err = encoder.Encode(config)
-	if err != nil {
-		log.Errorf("export error: %s", err)
-		return
-	}
-	log.Infof("exported conf file %s", f.Name())
-	*confFile = f.Name()
-
-}
-
-func beginMenu() {
-	if imgui.BeginMainMenuBar() {
-		if imgui.BeginMenu("File") {
-
-			if imgui.MenuItem("Open") {
-				openFile = true
-				var err error
-				files, err = ioutil.ReadDir("./confs/")
-				if err != nil {
-					log.Errorf("couldn't list files: %s", err)
-				}
-			}
-
-			if imgui.MenuItem("Save") {
-				saveFile = true
-			}
-
-			if imgui.MenuItem("Provision") {
-				openProvisioner = true
-			}
-
-			imgui.EndMenu()
-		}
-		if imgui.BeginMenu("Console") {
-			if imgui.MenuItem("Clear") {
-				ow.Text = ""
-				ow.Counter = 0
-			}
-
-			if imgui.MenuItem("Copy") {
-				err := clipboard.WriteAll(ow.Text)
-				if err != nil {
-					log.Errorf("copy error: %s", err)
-				}
-			}
-
-			if imgui.MenuItem("Dump history") {
-				writeHistory()
-			}
-
-			imgui.EndMenu()
-		}
-		if imgui.BeginMenu("Log level") {
-			if imgui.MenuItem("Debug") {
-				setLevel(log.DebugLevel)
-			}
-			if imgui.MenuItem("Info") {
-				setLevel(log.InfoLevel)
-			}
-			if imgui.MenuItem("Warning") {
-				setLevel(log.WarnLevel)
-			}
-			if imgui.MenuItem("Error") {
-				setLevel(log.ErrorLevel)
-			}
-
-			imgui.EndMenu()
-		}
-		imgui.EndMainMenuBar()
-	}
-}
-
-func beginOpenFile() {
+func buildMenu(th *material.Theme) (l.FlexChild, bool) {
 	if openFile {
-		imgui.OpenPopup("Select file")
+		return buildOpenFile(th)
+	}
+
+	if openProvisioner {
+		return buildProvisioner(th)
+	}
+
+	if saveFile {
+		return buildSaveFile(th)
+	}
+
+	for fileMIBtn.Clicked() {
+		fileMI = true
+	}
+
+	for consoleMIBtn.Clicked() {
+		consoleMI = true
+	}
+
+	for logMIBtn.Clicked() {
+		logMI = true
+	}
+
+	for fileOpenBtn.Clicked() {
+		openFile = true
+		var err error
+		files, err = ioutil.ReadDir("./confs/")
+		if err != nil {
+			log.Errorf("couldn't list files: %s", err)
+		}
+
+		names := []string{}
+		for _, info := range files {
+			filename := fmt.Sprintf("confs/%s", info.Name())
+			if !strings.Contains(filename, ".toml") {
+				continue
+			}
+
+			names = append(names, filename)
+		}
+
+		openFileCombo = giox.MakeCombo(names, "<filename>")
+		fileMI = false
+	}
+
+	for fileSaveBtn.Clicked() {
+		saveFile = true
+		fileMI = false
+	}
+
+	for fileProvisionBtn.Clicked() {
+		openProvisioner = true
+		fileMI = false
+	}
+
+	for fileCancelBtn.Clicked() {
+		fileMI = false
+	}
+
+	for consoleClearBtn.Clicked() {
+		ow.Lines = []string{}
+		consoleMI = false
+	}
+
+	for consoleClearBtn.Clicked() {
+		err := clipboard.WriteAll(ow.Text())
+		if err != nil {
+			log.Errorf("copy error: %s", err)
+		}
+		consoleMI = false
+	}
+
+	for consoleDumpBtn.Clicked() {
+		writeHistory()
+		consoleMI = false
+	}
+
+	for consoleCancelBtn.Clicked() {
+		consoleMI = false
+	}
+
+	for logLvlDebugBtn.Clicked() {
+		setLevel(log.DebugLevel)
+		logMI = false
+	}
+
+	for logLvlInfoBtn.Clicked() {
+		setLevel(log.InfoLevel)
+		logMI = false
+	}
+
+	for logLvlWarningBtn.Clicked() {
+		setLevel(log.WarnLevel)
+		logMI = false
+	}
+
+	for logLvlErrorBtn.Clicked() {
+		setLevel(log.ErrorLevel)
+		logMI = false
+	}
+
+	if fileMI {
+		widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				xmat.RigidButton(th, "Open", &fileOpenBtn),
+				xmat.RigidButton(th, "Save", &fileSaveBtn),
+				xmat.RigidButton(th, "Provision", &fileProvisionBtn),
+				xmat.RigidButton(th, "Cancel", &fileCancelBtn),
+			)
+		})
+
+		return widget, true
+	}
+
+	if consoleMI {
+		widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				xmat.RigidButton(th, "Clear", &consoleClearBtn),
+				xmat.RigidButton(th, "Copy", &consoleClearBtn),
+				xmat.RigidButton(th, "Dump history", &consoleDumpBtn),
+				xmat.RigidButton(th, "Cancel", &consoleCancelBtn),
+			)
+		})
+
+		return widget, true
+	}
+
+	if logMI {
+		widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				xmat.RigidButton(th, "Debug", &logLvlDebugBtn),
+				xmat.RigidButton(th, "Info", &logLvlInfoBtn),
+				xmat.RigidButton(th, "Warning", &logLvlWarningBtn),
+				xmat.RigidButton(th, "Error", &logLvlErrorBtn),
+			)
+		})
+
+		return widget, true
+	}
+
+	widget := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+			xmat.RigidButton(th, "File", &fileMIBtn),
+			xmat.RigidButton(th, "Console", &consoleMIBtn),
+			xmat.RigidButton(th, "Log", &logMIBtn),
+		)
+	})
+
+	return widget, false
+}
+
+func buildOpenFile(th *material.Theme) (l.FlexChild, bool) {
+
+	*confFile = openFileCombo.SelectedText()
+
+	for openFileCancelBtn.Clicked() {
 		openFile = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
-	imgui.PushItemWidth(250.0)
-	if imgui.BeginPopupModal("Select file") {
-		if imgui.BeginComboV("Select", *confFile, 0) {
-			for _, f := range files {
-				filename := fmt.Sprintf("confs/%s", f.Name())
-				if !strings.Contains(filename, ".toml") {
-					continue
-				}
-				if imgui.SelectableV(filename, *confFile == filename, 0, imgui.Vec2{}) {
-					*confFile = filename
-				}
-			}
-			imgui.EndCombo()
-		}
-		imgui.Separator()
-		if imgui.Button("Cancel") {
-			imgui.CloseCurrentPopup()
-		}
-		imgui.SameLine()
-		if imgui.Button("Import") {
-			//Import file.
-			importConf()
-			imgui.CloseCurrentPopup()
-			//Close popup.
-		}
-		imgui.EndPopup()
+
+	for openFileImportBtn.Clicked() {
+		importConf()
+		resetGuiValues()
+		setDevice()
+		openFile = false
 	}
+
+	widgets := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			xmat.RigidSection(th, "Select file"),
+			labelCombo(th, "Filename", &openFileCombo),
+			xmat.RigidButton(th, "Cancel", &openFileCancelBtn),
+			xmat.RigidButton(th, "Import", &openFileImportBtn),
+		)
+	})
+
+	return widgets, true
 }
 
-func beginSaveFile() {
-	if saveFile {
-		imgui.OpenPopup("Save file")
+func buildSaveFile(th *material.Theme) (l.FlexChild, bool) {
+
+	saveFilename = saveFileEditor.Text()
+
+	for saveFileCancelBtn.Clicked() {
 		saveFile = false
 	}
-	imgui.SetNextWindowPos(imgui.Vec2{X: float32(config.Window.Width-190) / 2, Y: float32(config.Window.Height-90) / 2})
-	imgui.SetNextWindowSize(imgui.Vec2{X: 380, Y: 180})
-	imgui.PushItemWidth(250.0)
-	if imgui.BeginPopupModal("Save file") {
 
-		imgui.InputText("Name", &saveFilename)
-		imgui.Separator()
-		if imgui.Button("Cancel") {
-			imgui.CloseCurrentPopup()
+	for saveFileSaveBtn.Clicked() {
+		exportConf(fmt.Sprintf("confs/%s", saveFilename))
+		saveFile = false
+	}
+
+	widgets := l.Rigid(func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			xmat.RigidSection(th, "Save file"),
+			xmat.RigidEditor(th, "Name", "<filename>", &saveFileEditor),
+			xmat.RigidButton(th, "Cancel", &saveFileCancelBtn),
+			xmat.RigidButton(th, "Save", &saveFileSaveBtn),
+		)
+	})
+
+	return widgets, true
+}
+
+func resetGuiValues() {
+	mqttResetGuiValue()
+	forwarderResetGuiValues()
+	loraResetGuiValues()
+	deviceResetGuiValues()
+	macResetGuiValues()
+	dataResetGuiValues()
+	provResetGuiValues()
+}
+
+var (
+	serversButton widget.Clickable
+	deviceButton  widget.Clickable
+	loraButton    widget.Clickable
+	controlButton widget.Clickable
+	dataButton    widget.Clickable
+
+	tabIndex uint
+)
+
+func mainWindow(gtx l.Context, th *material.Theme) {
+	wOutputForm := outputForm(th)
+
+	wMenu, isMenuOpen := buildMenu(th)
+
+	if isMenuOpen {
+		l.NW.Layout(gtx, func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				wMenu,
+				xmat.RigidSeparator(th, &giox.Separator{}),
+				wOutputForm,
+			)
+		})
+		return
+	}
+
+	for serversButton.Clicked() {
+		tabIndex = 0
+	}
+
+	for deviceButton.Clicked() {
+		tabIndex = 1
+	}
+
+	for loraButton.Clicked() {
+		tabIndex = 2
+	}
+
+	for controlButton.Clicked() {
+		tabIndex = 3
+	}
+
+	for dataButton.Clicked() {
+		tabIndex = 4
+	}
+
+	tabsWidget := l.Rigid(func(gtx l.Context) l.Dimensions {
+		p100 := gtx.Px(unit.Dp(100))
+		p500 := gtx.Px(unit.Dp(500))
+		gtx.Constraints = l.Exact(image.Point{X: p100, Y: p500})
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			xmat.RigidButton(th, "Connect", &serversButton),
+			xmat.RigidButton(th, "Device", &deviceButton),
+			xmat.RigidButton(th, "LoRa", &loraButton),
+			xmat.RigidButton(th, "Control", &controlButton),
+			xmat.RigidButton(th, "Data", &dataButton),
+		)
+	})
+
+	wMqttForm := mqttForm(th)
+	wForwarderForm := forwarderForm(th)
+	wDeviceForm := deviceForm(th)
+	wLoraForm := loRaForm(th)
+	wControlForm := controlForm(th)
+	wDataForm := dataForm(th)
+
+	var selectedWidget l.FlexChild
+	switch tabIndex {
+	case 0:
+		selectedWidget = l.Rigid(func(gtx l.Context) l.Dimensions {
+			return l.Flex{Axis: l.Vertical}.Layout(gtx,
+				wMqttForm,
+				xmat.RigidSeparator(th, &giox.Separator{}),
+				wForwarderForm,
+			)
+		})
+	case 1:
+		selectedWidget = wDeviceForm
+	case 2:
+		selectedWidget = wLoraForm
+	case 3:
+		selectedWidget = wControlForm
+	case 4:
+		selectedWidget = wDataForm
+	}
+
+	l.NW.Layout(gtx, func(gtx l.Context) l.Dimensions {
+		return l.Flex{Axis: l.Vertical}.Layout(gtx,
+			wMenu,
+			xmat.RigidSeparator(th, &giox.Separator{}),
+			l.Rigid(func(gtx l.Context) l.Dimensions {
+				return l.Flex{Axis: l.Horizontal}.Layout(gtx,
+					tabsWidget,
+					selectedWidget,
+				)
+			}),
+			xmat.RigidSeparator(th, &giox.Separator{}),
+			wOutputForm,
+		)
+	})
+}
+
+func loop(w *app.Window) error {
+	th := material.NewTheme(gofont.Collection())
+
+	var ops op.Ops
+	for {
+		e := <-w.Events()
+		switch e := e.(type) {
+		case system.DestroyEvent:
+			return e.Err
+		case system.FrameEvent:
+			gtx := l.NewContext(&ops, e)
+			mainWindow(gtx, th)
+			e.Frame(gtx.Ops)
 		}
-		imgui.SameLine()
-		if imgui.Button("Save") {
-			//Import file.
-			exportConf(fmt.Sprintf("confs/%s", saveFilename))
-			imgui.CloseCurrentPopup()
-			//Close popup.
-		}
-		imgui.EndPopup()
 	}
 }
 
 func main() {
-	runtime.LockOSThread()
-
-	err := glfw.Init()
-	if err != nil {
-		panic(err)
-	}
-	defer glfw.Terminate()
+	/* runtime.LockOSThread() */
 
 	mw := io.MultiWriter(ow, os.Stderr)
 	log.SetOutput(mw)
 
-	glfw.WindowHint(glfw.ContextVersionMajor, 3)
-	glfw.WindowHint(glfw.ContextVersionMinor, 2)
-	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
-	glfw.WindowHint(glfw.OpenGLForwardCompatible, 1)
-
 	confFile = flag.String("conf", "conf.toml", "path to toml configuration file")
 	flag.Parse()
 
+	createLoRaForm()
+	createDeviceForm()
+	createDataForm()
+	createOutputForm()
+	tabIndex = 0
+
 	importConf()
+	resetGuiValues()
+	setDevice()
 
-	window, err := glfw.CreateWindow(config.Window.Width, config.Window.Height, "LoRaServer device simulator", nil, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer window.Destroy()
-	window.MakeContextCurrent()
-	glfw.SwapInterval(1)
-	err = gl.Init()
-	if err != nil {
-		panic(err)
-	}
-
-	context := imgui.CreateContext(nil)
-	defer context.Destroy()
-
-	impl := imguiGlfw3Init(window)
-	defer impl.Shutdown()
-
-	var clearColor imgui.Vec4
-
-	for !window.ShouldClose() {
-		glfw.PollEvents()
-		impl.NewFrame()
-
-		beginMQTTForm()
-		beginForwarderForm()
-		beginDeviceForm()
-		beginLoRaForm()
-		beginControl()
-		beginDataForm()
-		beginOutput()
-		beginMenu()
-		beginProvisioner()
-
-		displayWidth, displayHeight := window.GetFramebufferSize()
-		gl.Viewport(0, 0, int32(displayWidth), int32(displayHeight))
-		gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W)
-		gl.Clear(gl.COLOR_BUFFER_BIT)
-
-		imgui.Render()
-		impl.Render(imgui.RenderedDrawData())
-
-		window.SwapBuffers()
-		<-time.After(time.Millisecond * 25)
-	}
+	go func() {
+		defer os.Exit(0)
+		w := app.NewWindow(app.Size(unit.Dp(1024), unit.Dp(768)))
+		if err := loop(w); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	app.Main()
 }
