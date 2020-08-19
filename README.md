@@ -193,7 +193,8 @@ The package is written in Go and tested with Go 1.14, which can be downloaded fr
 Something like this should work for Debian / Ubuntu / Mint, but please check [gioui](https://gioui.org/) and general OpenGL docs to see requirements for your system:
 
 ```sh
-sudo apt-get install build-essential xorg-dev libgl1 libgl1-mesa-dev libgl1-mesa-glx libgles2-mesa-dev redis-server
+sudo apt-get install build-essential redis-server
+sudo apt-get install xorg-dev libgl1 libgl1-mesa-dev libgl1-mesa-glx libgles2-mesa-dev
 sudo apt-get install libxkbcommon-x11-0 libxkbcommon-x11-dev
 ```
 
