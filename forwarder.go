@@ -51,6 +51,8 @@ func forwarderForm(th *material.Theme) l.FlexChild {
 		} else {
 			wConnect = matx.RigidLabel(th, "UDP Listening")
 		}
+	} else {
+		wConnect = matx.RigidLabel(th, "MQTT Connected")
 	}
 
 	inset := l.Inset{Left: unit.Dp(30)}
