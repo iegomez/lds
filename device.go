@@ -713,6 +713,16 @@ func onIncomingDownlink(payload []byte) error {
 		config.Device.SNwkSIntKey = lds.KeyToHex(cDevice.SNwkSIntKey)
 		config.Device.DevAddress = lds.DevAddressToHex(cDevice.DevAddr)
 		config.Device.Joined = cDevice.Joined
+
+		//Update session keys based on join-accept
+		if cDevice.Profile == "OTAA" && cDevice.Joined {
+			deviceAddressEdit.SetText(config.Device.DevAddress)
+			nwkSEncKeyEdit.SetText(config.Device.NwkSEncKey)
+			sNwkSIntKeyEdit.SetText(config.Device.SNwkSIntKey)
+			appSKeyEdit.SetText(config.Device.AppSKey)
+			fNwkSIntKeyEdit.SetText(config.Device.FNwkSIntKey)
+		}
+
 		if err != nil {
 			log.Errorf("downlink error: %s", err)
 		} else {
