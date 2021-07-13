@@ -1,0 +1,32 @@
+name: 'Compile binary'
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 'Deployment with ssh'
+    runs-on: windows-2019
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Compile go
+      env:
+          GOROOT_1_14_X64: 1
+          GOEXE: .exe
+      run: make
+
+    - name: Save compiled file
+      uses: actions/upload-artifact@v2
+      with:
+        name: gui
+        path: gui.exe
