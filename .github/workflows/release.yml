@@ -8,11 +8,40 @@ on:
 jobs:
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-2019
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Compile go
+      env:
+          GOROOT_1_14_X64: 1
+          GOEXE: .exe
+      run: make
+
+    - name: Save compiled file
+      uses: actions/upload-artifact@v2
+      with:
+        name: gui
+        path: gui.exe
+        
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Download result from build
+      uses: actions/download-artifact@v2
+      with:
+        name: gui
+
     - uses: ncipollo/release-action@v1
       with:
-        artifacts: "gui"
+        artifacts: "gui,gui.exe"
         body: "LoRa Simulator release"
         token: ${{ secrets.GITHUB_TOKEN }}
