@@ -1,5 +1,5 @@
 COMMIT_HOOK=.git/hooks/commit-msg
-GOEXE ?= $(go env exe)
+GOEXE ?= $(shell go env GOEXE)
 
 all: init
 	go build -o gui${GOEXE}
